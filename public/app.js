@@ -341,8 +341,22 @@ function addVideoStream(socketId, number) {
     <video id="video-${socketId}" autoplay playsinline></video>
     <div class="video-label">${number}</div>
   `;
+  
+  wrapper.addEventListener('click', () => toggleFullscreen(wrapper));
+  
   videoGrid.appendChild(wrapper);
 }
+
+function toggleFullscreen(element) {
+  // Use a highly reliable CSS-based approach instead of native fullscreen 
+  // because iOS/Safari heavily restricts native fullscreen API on HTML divs.
+  element.classList.toggle('pseudo-fullscreen');
+}
+
+// Make local video clickable for fullscreen too
+document.getElementById('wrapper-local').addEventListener('click', function() {
+  toggleFullscreen(this);
+});
 
 // Room logic
 async function joinRoom(roomId) {
