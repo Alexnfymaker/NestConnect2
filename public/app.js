@@ -8,10 +8,12 @@ const currentRoomIdEl = document.getElementById('current-room-id');
 const videoGrid = document.getElementById('video-grid');
 const localVideo = document.getElementById('local-video');
 const localNumberLabel = document.getElementById('local-number-label');
+const localNicknameLabel = document.getElementById('local-nickname-label');
 
 const btnHostMeeting = document.getElementById('btn-host-meeting');
 const btnJoinMeeting = document.getElementById('btn-join-meeting');
 const roomCodeInput = document.getElementById('room-code-input');
+const nicknameInput = document.getElementById('nickname-input');
 const btnMute = document.getElementById('btn-mute');
 const btnVideo = document.getElementById('btn-video');
 const btnScreenShare = document.getElementById('btn-screen-share');
@@ -331,14 +333,14 @@ function destroyPeerConnection(targetSocketId) {
   if (wrapper) wrapper.remove();
 }
 
-function addVideoStream(socketId, number) {
+function addVideoStream(socketId, number, nickname = 'User') {
   if (document.getElementById(`wrapper-${socketId}`)) return; // already exists
   const wrapper = document.createElement('div');
   wrapper.className = 'video-wrapper glass-panel';
   wrapper.id = `wrapper-${socketId}`;
   wrapper.innerHTML = `
     <video id="video-${socketId}" autoplay playsinline></video>
-    <div class="video-label">${number}</div>
+    <div class="video-label">${nickname} (${number})</div>
   `;
   
   wrapper.addEventListener('click', () => toggleFullscreen(wrapper));
@@ -366,10 +368,13 @@ document.getElementById('wrapper-local').addEventListener('click', function() {
 });
 
 // Room logic
-async function joinRoom(roomId) {
+async function joinRoom(roomId, nickname) {
   const hasMedia = await getMedia();
   if (!hasMedia) return;
-  socket.emit('join-room', { roomId });
+  socket.emit('join-room', { roomId, nickname });
+  if (nickname && localNicknameLabel) {
+    localNicknameLabel.textContent = nickname;
+  }
 }
 
 function leaveRoom() {
@@ -391,17 +396,21 @@ socket.on('assigned-number', ({ number }) => {
 
 // Dashboard Actions
 btnHostMeeting.addEventListener('click', async () => {
+  const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+  if (!nickname) return showToast('Please enter a nickname');
   const hasMedia = await getMedia();
   if (!hasMedia) return;
-  socket.emit('create-room');
+  socket.emit('create-room', { nickname });
+  if (localNicknameLabel) localNicknameLabel.textContent = nickname;
 });
 
 btnJoinMeeting.addEventListener('click', async () => {
+  const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+  if (!nickname) return showToast('Please enter a nickname');
   const roomId = roomCodeInput.value.trim();
   if (!roomId) return showToast('Please enter a room code');
-  const hasMedia = await getMedia();
-  if (!hasMedia) return;
-  socket.emit('join-room', { roomId });
+  
+  joinRoom(roomId, nickname);
 });
 
 socket.on('room-created', ({ roomId }) => {
@@ -416,15 +425,15 @@ socket.on('room-joined', ({ roomId, users }) => {
   showScreen(roomScreen);
   // Prepare connections for all users currently in the room
   users.forEach(user => {
-    addVideoStream(user.socketId, user.number);
+    addVideoStream(user.socketId, user.number, user.nickname);
     createPeerConnection(user.socketId, user.number);
   });
 });
 
 // An existing user triggers an offer when a new user joins
-socket.on('user-joined', async ({ socketId, number }) => {
-  showToast(`User ${number} joined the meeting`);
-  addVideoStream(socketId, number);
+socket.on('user-joined', async ({ socketId, number, nickname }) => {
+  showToast(`${nickname || 'User'} joined the meeting`);
+  addVideoStream(socketId, number, nickname);
   const pc = createPeerConnection(socketId, number);
   try {
     const offer = await pc.createOffer();
@@ -441,11 +450,11 @@ socket.on('user-left', ({ socketId, number }) => {
 });
 
 // WebRTC Signaling
-socket.on('offer', async ({ senderSocketId, senderNumber, offer }) => {
+socket.on('offer', async ({ senderSocketId, senderNumber, senderNickname, offer }) => {
   // A new user receiving offers from existing users
   let peer = peers[senderSocketId];
   if (!peer) {
-    addVideoStream(senderSocketId, senderNumber);
+    addVideoStream(senderSocketId, senderNumber, senderNickname);
     createPeerConnection(senderSocketId, senderNumber);
     peer = peers[senderSocketId];
   }
@@ -515,10 +524,10 @@ btnSendInvite.addEventListener('click', () => {
 });
 
 // Incoming Invites
-socket.on('invitation', ({ callerNumber, roomId }) => {
+socket.on('invitation', ({ callerNumber, callerNickname, roomId }) => {
   currentInviter = callerNumber;
   currentInviteRoom = roomId;
-  inviterNumberEl.textContent = callerNumber;
+  inviterNumberEl.textContent = `${callerNickname || 'User'} (${callerNumber})`;
   incomingInviteOverlay.classList.remove('hidden');
 });
 
@@ -534,8 +543,13 @@ btnRejectInvite.addEventListener('click', () => {
 });
 
 btnAcceptInvite.addEventListener('click', () => {
+  const nickname = nicknameInput ? nicknameInput.value.trim() : '';
+  if (!nickname) {
+    showToast('Please enter a nickname on the dashboard first');
+    return;
+  }
   incomingInviteOverlay.classList.add('hidden');
-  joinRoom(currentInviteRoom);
+  joinRoom(currentInviteRoom, nickname);
 });
 
 btnLeave.addEventListener('click', () => {

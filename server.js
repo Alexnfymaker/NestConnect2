@@ -29,6 +29,8 @@ const io = new Server(server, { cors: { origin: '*' } });
 const numberToSocketId = new Map();
 // Mapping from socket ID -> assigned number
 const socketIdToNumber = new Map();
+// Mapping from socket ID -> assigned nickname
+const socketIdToNickname = new Map();
 
 // Generate a random 6-digit number
 function generateNumber() {
@@ -53,29 +55,33 @@ io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id} (Number: ${myNumber})`);
 
   // Room Management
-  socket.on('create-room', () => {
+  socket.on('create-room', ({ nickname } = {}) => {
+    socketIdToNickname.set(socket.id, nickname || 'User');
     const roomId = generateRoomId();
     socket.join(roomId);
     socket.roomId = roomId; // attach to socket for easy cleanup
     socket.emit('room-created', { roomId });
   });
 
-  socket.on('join-room', ({ roomId }) => {
+  socket.on('join-room', ({ roomId, nickname }) => {
     const room = io.sockets.adapter.rooms.get(roomId);
     if (room) {
+      socketIdToNickname.set(socket.id, nickname || 'User');
       socket.join(roomId);
       socket.roomId = roomId;
       
       // Tell everyone in the room that a new user joined so they can initiate offers
       socket.to(roomId).emit('user-joined', { 
         socketId: socket.id, 
-        number: myNumber 
+        number: myNumber,
+        nickname: socketIdToNickname.get(socket.id)
       });
       
       // Give the new user a list of all existing users to prepare PeerConnections
       const existingUsers = Array.from(room).filter(id => id !== socket.id).map(id => ({
         socketId: id,
-        number: socketIdToNumber.get(id)
+        number: socketIdToNumber.get(id),
+        nickname: socketIdToNickname.get(id) || 'User'
       }));
       socket.emit('room-joined', { roomId, users: existingUsers });
     } else {
@@ -89,6 +95,7 @@ io.on('connection', (socket) => {
     if (targetSocketId) {
       io.to(targetSocketId).emit('invitation', {
         callerNumber: myNumber,
+        callerNickname: socketIdToNickname.get(socket.id) || 'User',
         roomId
       });
     } else {
@@ -108,6 +115,7 @@ io.on('connection', (socket) => {
     io.to(targetSocketId).emit('offer', {
       senderSocketId: socket.id,
       senderNumber: myNumber,
+      senderNickname: socketIdToNickname.get(socket.id) || 'User',
       offer
     });
   });
@@ -142,6 +150,7 @@ io.on('connection', (socket) => {
     console.log(`User disconnected: ${socket.id} (Number: ${myNumber})`);
     numberToSocketId.delete(myNumber);
     socketIdToNumber.delete(socket.id);
+    socketIdToNickname.delete(socket.id);
   });
 });
 
