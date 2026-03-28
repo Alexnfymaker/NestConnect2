@@ -1,19 +1,29 @@
 const express = require('express');
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
-const options = {
-  key: fs.readFileSync(path.join(__dirname, 'server.key')),
-  cert: fs.readFileSync(path.join(__dirname, 'server.cert'))
-};
-
-const server = https.createServer(options, app);
-const io = new Server(server, { cors: { origin: '*' } });
-
 app.use(express.static(path.join(__dirname, 'public')));
+
+let server;
+const keyPath = path.join(__dirname, 'server.key');
+const certPath = path.join(__dirname, 'server.cert');
+
+if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
+  const options = {
+    key: fs.readFileSync(keyPath),
+    cert: fs.readFileSync(certPath)
+  };
+  server = https.createServer(options, app);
+} else {
+  // Graceful fallback to HTTP for production (like Fly.io) where SSL is handled by their load balancer
+  server = http.createServer(app);
+}
+
+const io = new Server(server, { cors: { origin: '*' } });
 
 // Mapping from assigned number -> socket ID
 const numberToSocketId = new Map();
