@@ -218,7 +218,7 @@ async function startScreenShare() {
     const newVideoTrack = screenStream.getVideoTracks()[0];
     
     // Replace track in peer connections with robust fallback
-    for (const peer of Object.values(peers)) {
+    for (const [targetSocketId, peer] of Object.entries(peers)) {
       const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
       if (sender) {
         try {
@@ -227,9 +227,15 @@ async function startScreenShare() {
           console.warn('replaceTrack failed, renegotiating...', err);
           peer.pc.removeTrack(sender);
           peer.pc.addTrack(newVideoTrack, localStream);
+          const offer = await peer.pc.createOffer();
+          await peer.pc.setLocalDescription(offer);
+          socket.emit('offer', { targetSocketId, offer });
         }
       } else {
         peer.pc.addTrack(newVideoTrack, localStream);
+        const offer = await peer.pc.createOffer();
+        await peer.pc.setLocalDescription(offer);
+        socket.emit('offer', { targetSocketId, offer });
       }
     }
     
@@ -251,7 +257,7 @@ async function stopScreenShare() {
   isSharingScreen = false;
   
   const originalVideoTrack = localStream.getVideoTracks()[0];
-  for (const peer of Object.values(peers)) {
+  for (const [targetSocketId, peer] of Object.entries(peers)) {
     const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
     if (sender && originalVideoTrack) {
       try {
@@ -259,6 +265,9 @@ async function stopScreenShare() {
       } catch (err) {
         peer.pc.removeTrack(sender);
         peer.pc.addTrack(originalVideoTrack, localStream);
+        const offer = await peer.pc.createOffer();
+        await peer.pc.setLocalDescription(offer);
+        socket.emit('offer', { targetSocketId, offer });
       }
     }
   }
@@ -289,17 +298,6 @@ function createPeerConnection(targetSocketId, targetNumber) {
     const videoTrack = isSharingScreen && screenStream ? screenStream.getVideoTracks()[0] : localStream.getVideoTracks()[0];
     if (videoTrack) pc.addTrack(videoTrack, localStream);
   }
-
-  // Handle Renegotiation
-  pc.onnegotiationneeded = async () => {
-    try {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('offer', { targetSocketId, offer });
-    } catch (err) {
-      console.error('Renegotiation error:', err);
-    }
-  };
 
   // ICE Handling
   pc.onicecandidate = (event) => {
