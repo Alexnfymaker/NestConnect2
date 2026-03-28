@@ -209,7 +209,6 @@ function toggleVideo(forceMute = null) {
 }
 
 async function startScreenShare() {
-  if (isVideoMuted) return showToast('Cannot share screen while video is disabled');
   try {
     // Request only video to prevent NotAllowedError in many browsers when sharing specific windows
     screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
@@ -347,10 +346,18 @@ function addVideoStream(socketId, number) {
   videoGrid.appendChild(wrapper);
 }
 
-function toggleFullscreen(element) {
-  // Use a highly reliable CSS-based approach instead of native fullscreen 
-  // because iOS/Safari heavily restricts native fullscreen API on HTML divs.
-  element.classList.toggle('pseudo-fullscreen');
+function toggleFullscreen(wrapper) {
+  const videoEl = wrapper.querySelector('video');
+  if (!videoEl) return;
+  
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (videoEl.requestFullscreen) videoEl.requestFullscreen();
+    else if (videoEl.webkitEnterFullscreen) videoEl.webkitEnterFullscreen(); // iOS Safari specific
+    else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
 }
 
 // Make local video clickable for fullscreen too

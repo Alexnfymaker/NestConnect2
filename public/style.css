@@ -219,29 +219,7 @@ body {
   object-fit: contain;
 }
 
-/* Pseudo-fullscreen modal popout handling */
-.video-wrapper.pseudo-fullscreen {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  margin: auto !important;
-  width: 85vw !important;
-  height: 80vh !important;
-  max-width: 1200px !important;
-  aspect-ratio: auto !important;
-  z-index: 9999 !important;
-  border-radius: 12px !important;
-  border: 2px solid #333 !important;
-  background: #000 !important;
-  /* Giant shadow to create a cinematic backdrop overlay without DOM elements */
-  box-shadow: 0 0 0 100vmax rgba(0,0,0,0.85), 0 0 50px rgba(0,0,0,0.8) !important;
-}
 
-.video-wrapper.pseudo-fullscreen video {
-  object-fit: contain !important;
-}
 
 /* Mirror local video */
 #wrapper-local video {
