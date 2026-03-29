@@ -522,7 +522,6 @@ async function getMedia() {
       return true;
     } catch (err2) {
       console.error('Final fallback failed. Starting with dummy track.', err2);
-      showToast('Camera/Mic blocked. Starting without video.');
       
       const dummy = createDummyVideoTrack();
       localStream = new MediaStream();
@@ -534,6 +533,7 @@ async function getMedia() {
       } catch(e3) {}
       
       localVideo.srcObject = localStream;
+      monitorSpeech(localStream, 'wrapper-local', 'local');
       return true; // Return true so the meeting STILL starts!
     }
   }
