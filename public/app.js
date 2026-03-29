@@ -491,8 +491,11 @@ async function populateDevices() {
 async function getMedia() {
   if (localStream) return true;
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('Your browser does not support camera/microphone access.');
-    return false;
+    showToast('Browser does not support media. Starting with dummy video...');
+    const dummy = createDummyVideoTrack();
+    localStream = new MediaStream([dummy]);
+    localVideo.srcObject = localStream;
+    return true; 
   }
 
   if (videoSourceSelect.options.length === 0) await populateDevices();
@@ -500,30 +503,38 @@ async function getMedia() {
   const videoId = videoSourceSelect.value;
   const audioId = audioSourceSelect.value;
   
-  // Try with specific IDs if available, otherwise use defaults
   const constraints = {
     audio: audioId ? { deviceId: { ideal: audioId } } : true,
     video: videoId ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
   };
 
   try {
-    console.log('Requesting media with constraints:', constraints);
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    console.warn('Selected media failed, trying absolute defaults...', e);
+    console.warn('Selected media failed, trying fallback...', e);
     try {
-      // Emergency fallback: No constraints at all, just "give me video and audio"
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
       monitorSpeech(localStream, 'wrapper-local', 'local');
       return true;
     } catch (err2) {
-      console.error('Final media fallback failed:', err2);
-      showToast('Camera/Mic access denied. Please check your browser permissions.');
-      return false;
+      console.error('Final fallback failed. Starting with dummy track.', err2);
+      showToast('Camera/Mic blocked. Starting without video.');
+      
+      const dummy = createDummyVideoTrack();
+      localStream = new MediaStream();
+      if (dummy) localStream.addTrack(dummy);
+      // Try to get audio only as a last resort
+      try {
+        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (audioOnly.getAudioTracks().length) localStream.addTrack(audioOnly.getAudioTracks()[0]);
+      } catch(e3) {}
+      
+      localVideo.srcObject = localStream;
+      return true; // Return true so the meeting STILL starts!
     }
   }
 }
