@@ -490,6 +490,7 @@ async function populateDevices() {
 
 async function getMedia() {
   if (localStream) return true;
+  if (videoSourceSelect.options.length === 0) await populateDevices();
   try {
     const videoId = videoSourceSelect.value;
     const audioId = audioSourceSelect.value;
@@ -815,7 +816,7 @@ btnHostMeeting.addEventListener('click', async () => {
   if (!hasMedia) return;
   socket.emit('create-room', { 
     nickname: currentUser.nickname, 
-    id: currentUser.id 
+    id: myNumber 
   });
 });
 
