@@ -735,7 +735,10 @@ function leaveRoom() {
 btnHostMeeting.addEventListener('click', async () => {
   const hasMedia = await getMedia();
   if (!hasMedia) return;
-  socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
+  socket.emit('create-room', { 
+    nickname: currentUser.nickname, 
+    id: currentUser.id 
+  });
 });
 
 btnJoinMeeting.addEventListener('click', async () => {
