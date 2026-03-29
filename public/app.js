@@ -490,32 +490,39 @@ async function populateDevices() {
 
 async function getMedia() {
   if (localStream) return true;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showToast('Your browser does not support camera/microphone access.');
+    return false;
+  }
+
   if (videoSourceSelect.options.length === 0) await populateDevices();
   
   const videoId = videoSourceSelect.value;
   const audioId = audioSourceSelect.value;
   
-  // High-reliability constraints
+  // Try with specific IDs if available, otherwise use defaults
   const constraints = {
     audio: audioId ? { deviceId: { ideal: audioId } } : true,
-    video: videoId ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: 1280, height: 720 }
+    video: videoId ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
   };
 
   try {
+    console.log('Requesting media with constraints:', constraints);
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    console.warn('Selection failed, falling back to default media...', e);
+    console.warn('Selected media failed, trying absolute defaults...', e);
     try {
-      // Fallback: Just ask for any available camera/mic
+      // Emergency fallback: No constraints at all, just "give me video and audio"
       localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localVideo.srcObject = localStream;
       monitorSpeech(localStream, 'wrapper-local', 'local');
       return true;
     } catch (err2) {
-      showToast('Could not access camera/mic');
+      console.error('Final media fallback failed:', err2);
+      showToast('Camera/Mic access denied. Please check your browser permissions.');
       return false;
     }
   }
