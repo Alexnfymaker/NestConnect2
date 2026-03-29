@@ -491,22 +491,33 @@ async function populateDevices() {
 async function getMedia() {
   if (localStream) return true;
   if (videoSourceSelect.options.length === 0) await populateDevices();
-  try {
-    const videoId = videoSourceSelect.value;
-    const audioId = audioSourceSelect.value;
-    
-    const constraints = {
-      audio: audioId ? { deviceId: { exact: audioId } } : true,
-      video: videoId ? { deviceId: { exact: videoId } } : { width: 1280, height: 720 }
-    };
+  
+  const videoId = videoSourceSelect.value;
+  const audioId = audioSourceSelect.value;
+  
+  // High-reliability constraints
+  const constraints = {
+    audio: audioId ? { deviceId: { ideal: audioId } } : true,
+    video: videoId ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: 1280, height: 720 }
+  };
 
+  try {
     localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    showToast('Could not access camera/mic');
-    return false;
+    console.warn('Selection failed, falling back to default media...', e);
+    try {
+      // Fallback: Just ask for any available camera/mic
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localVideo.srcObject = localStream;
+      monitorSpeech(localStream, 'wrapper-local', 'local');
+      return true;
+    } catch (err2) {
+      showToast('Could not access camera/mic');
+      return false;
+    }
   }
 }
 
