@@ -845,10 +845,25 @@ body::before {
   display: flex; align-items: center; justify-content: center;
   color: var(--accent);
   font-weight: 700;
+  position: relative;
+  flex-shrink: 0;
 }
-.friend-info { flex: 1; }
-.friend-name { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+/* Online presence dot */
+.friend-avatar .online-dot {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #16a34a;
+  border: 2px solid var(--bg);
+  transition: background .3s;
+}
+.friend-info { flex: 1; min-width: 0; }
+.friend-name { display: block; font-size: 14px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .friend-status { font-size: 11px; color: var(--text-3); }
+.friend-status.online { color: #16a34a; font-weight: 600; }
 
 .messaging-area { display: flex; flex-direction: column; height: 100%; background: var(--surface); }
 .chat-header {

@@ -135,6 +135,14 @@ app.post('/api/friends/accept', authenticate, (req, res) => {
   res.json({ success: true });
 });
 
+// Returns which of the current user's friends are online right now
+app.get('/api/online-friends', authenticate, (req, res) => {
+  const users = getUsers();
+  const user = users[req.userEmail];
+  const onlineFriends = (user.friends || []).filter(fid => idToSocketId.has(fid));
+  res.json({ onlineFriends });
+});
+
 // --- Server Setup ---
 let server;
 const keyPath = path.join(__dirname, 'server.key');
@@ -161,6 +169,18 @@ io.on('connection', (socket) => {
     idToSocketId.set(id, socket.id);
     socketIdToId.set(socket.id, id);
     console.log(`Socket ${socket.id} identified as ${id}`);
+
+    // Notify friends that this user just came online
+    try {
+      const users = getUsers();
+      const user = Object.values(users).find(u => u.id === id);
+      if (user && user.friends) {
+        user.friends.forEach(friendId => {
+          const friendSid = idToSocketId.get(friendId);
+          if (friendSid) io.to(friendSid).emit('friend-online', { id });
+        });
+      }
+    } catch(e) {}
   });
 
   // Room Management
@@ -233,6 +253,18 @@ io.on('connection', (socket) => {
     if (id) {
       idToSocketId.delete(id);
       socketIdToId.delete(socket.id);
+
+      // Notify friends that this user just went offline
+      try {
+        const users = getUsers();
+        const user = Object.values(users).find(u => u.id === id);
+        if (user && user.friends) {
+          user.friends.forEach(friendId => {
+            const friendSid = idToSocketId.get(friendId);
+            if (friendSid) io.to(friendSid).emit('friend-offline', { id });
+          });
+        }
+      } catch(e) {}
     }
     socketIdToNickname.delete(socket.id);
     if (socket.roomId) {

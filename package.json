@@ -9,11 +9,29 @@
         "socket.io": "^4.8.3"
     },
     "license": "ISC",
-    "main": "server.js",
+    "main": "main.js",
     "name": "nestconnect",
     "scripts": {
         "start": "node server.js",
+        "electron": "electron .",
+        "build-exe": "electron-builder build --win --publish never",
         "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "build": {
+        "appId": "com.alexnfymaker.nestconnect",
+        "productName": "NestConnect",
+        "win": {
+            "target": [
+                "nsis"
+            ]
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": true,
+            "createStartMenuShortcut": true,
+            "shortcutName": "NestConnect"
+        }
     },
     "type": "commonjs",
     "version": "1.0.0",
@@ -26,5 +44,9 @@
         "show_in_taskbar": true,
         "title": "NestConnect",
         "visible": true
+    },
+    "devDependencies": {
+        "electron": "^41.1.0",
+        "electron-builder": "^26.8.1"
     }
 }

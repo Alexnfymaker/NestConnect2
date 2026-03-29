@@ -87,6 +87,7 @@ let currentUser = null;
 let isRegisterMode = false;
 let activeChatFriendId = null;
 const chatHistory = {}; // friendId -> [{type,msg}]
+const onlineFriends = new Set(); // track who is online
 
 let myNumber = '';
 let currentRoom = null;
@@ -216,9 +217,44 @@ function onLoggedIn(user) {
   showAppScreen(dashboardScreen);
   // Directly populate UI from the already-fetched user object, then refresh
   renderFriendsFromUser(user);
+  // Fetch initial online status then refresh UI
+  fetch('/api/online-friends').then(r => r.json()).then(data => {
+    if (data.onlineFriends) {
+      data.onlineFriends.forEach(fid => onlineFriends.add(fid));
+      renderFriendsFromUser(currentUser);
+    }
+  }).catch(() => {});
   // Also do a full refresh to make sure everything is up to date
   updateFriendsUI();
 }
+
+// ── Real-time online presence ──
+socket.on('friend-online', ({ id }) => {
+  onlineFriends.add(id);
+  // Update just this friend's item if visible, else do a full re-render
+  const item = document.getElementById(`friend-item-${id}`);
+  if (item) {
+    const avatar = item.querySelector('.friend-avatar');
+    const status = item.querySelector('.friend-status');
+    if (avatar && !avatar.querySelector('.online-dot')) {
+      const dot = document.createElement('span');
+      dot.className = 'online-dot';
+      avatar.appendChild(dot);
+    }
+    if (status) { status.textContent = '● Online'; status.className = 'friend-status online'; }
+  }
+});
+
+socket.on('friend-offline', ({ id }) => {
+  onlineFriends.delete(id);
+  const item = document.getElementById(`friend-item-${id}`);
+  if (item) {
+    const dot = item.querySelector('.online-dot');
+    if (dot) dot.remove();
+    const status = item.querySelector('.friend-status');
+    if (status) { status.textContent = 'Offline'; status.className = 'friend-status'; }
+  }
+});
 
 function renderFriendsFromUser(user) {
   // Pending requests on dashboard
@@ -241,14 +277,16 @@ function renderFriendsFromUser(user) {
     friendsListContainer.innerHTML = '<p class="dash-sub" style="padding:20px">No friends yet — add one via ID!</p>';
   } else {
     user.friends.forEach(fid => {
+      const isOnline = onlineFriends.has(fid);
       const div = document.createElement('div');
       div.className = `friend-item ${activeChatFriendId === fid ? 'active' : ''}`;
+      div.id = `friend-item-${fid}`;
       const initials = fid.substring(0, 2);
       div.innerHTML = `
-        <div class="friend-avatar">${initials}</div>
+        <div class="friend-avatar">${initials}${isOnline ? '<span class="online-dot"></span>' : ''}</div>
         <div class="friend-info">
           <span class="friend-name">Friend #${fid}</span>
-          <span class="friend-status">Click to chat</span>
+          <span class="friend-status ${isOnline ? 'online' : ''}">${isOnline ? '● Online' : 'Offline'}</span>
         </div>`;
       div.onclick = () => selectChat(fid);
       friendsListContainer.appendChild(div);
@@ -309,40 +347,7 @@ async function updateFriendsUI() {
     if (!res.ok) return;
     const user = await res.json();
     currentUser = user;
-
-    // Pending requests on dashboard
-    pendingRequestsList.innerHTML = '';
-    if (user.friendRequests.length === 0) {
-      pendingRequestsList.innerHTML = '<p class="dash-sub" style="margin-top:4px">No pending requests</p>';
-    } else {
-      user.friendRequests.forEach(rid => {
-        const div = document.createElement('div');
-        div.className = 'request-item';
-        div.innerHTML = `<span>ID: <strong>${rid}</strong></span><button class="btn-accept-small">Accept</button>`;
-        div.querySelector('button').onclick = () => acceptFriend(rid);
-        pendingRequestsList.appendChild(div);
-      });
-    }
-
-    // Friends list in chat sidebar
-    friendsListContainer.innerHTML = '';
-    if (user.friends.length === 0) {
-      friendsListContainer.innerHTML = '<p class="dash-sub" style="padding:20px">No friends yet — add one via ID!</p>';
-    } else {
-      user.friends.forEach(fid => {
-        const div = document.createElement('div');
-        div.className = `friend-item ${activeChatFriendId === fid ? 'active' : ''}`;
-        const initials = fid.substring(0, 2);
-        div.innerHTML = `
-          <div class="friend-avatar">${initials}</div>
-          <div class="friend-info">
-            <span class="friend-name">Friend #${fid}</span>
-            <span class="friend-status">Click to chat</span>
-          </div>`;
-        div.onclick = () => selectChat(fid);
-        friendsListContainer.appendChild(div);
-      });
-    }
+    renderFriendsFromUser(user);
   } catch (e) {
     console.error('Failed to update friends UI', e);
   }

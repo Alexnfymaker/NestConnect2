@@ -214,6 +214,54 @@
 
     <div id="toast" class="toast hidden"></div>
 
+    <!-- ── Electron Screen Picker (only active in desktop app) ── -->
+    <div id="screen-picker-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
+      <div style="background:#111; border:1px solid #222; border-radius:16px; padding:28px; width:90%; max-width:780px; max-height:80vh; overflow:auto;">
+        <h2 style="color:#fff; font-family:Inter,sans-serif; font-size:18px; font-weight:700; margin-bottom:6px;">Choose what to share</h2>
+        <p style="color:#6b7280; font-family:Inter,sans-serif; font-size:13px; margin-bottom:20px;">Select a screen or window to share with participants.</p>
+        <div id="screen-picker-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; margin-bottom:20px;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button onclick="cancelScreenPick()" style="background:#1a1a1a; color:#9ca3af; border:1px solid #333; border-radius:8px; padding:9px 20px; font-family:Inter,sans-serif; font-size:13px; cursor:pointer;">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Electron Bridge Script ── -->
+    <script>
+      // Only runs inside the Electron desktop app
+      if (window.electronBridge) {
+        window.electronBridge.onShowScreenPicker(function(sources) {
+          const overlay = document.getElementById('screen-picker-overlay');
+          const grid = document.getElementById('screen-picker-grid');
+          grid.innerHTML = '';
+          sources.forEach(function(src) {
+            const card = document.createElement('div');
+            card.style.cssText = 'background:#1a1a1a; border:2px solid #333; border-radius:10px; padding:10px; cursor:pointer; transition:border-color .15s; display:flex; flex-direction:column; align-items:center; gap:8px;';
+            card.onmouseover = function() { card.style.borderColor = '#1a56db'; };
+            card.onmouseout  = function() { card.style.borderColor = '#333'; };
+            card.onclick = function() {
+              overlay.style.display = 'none';
+              window.electronBridge.selectScreen(src.id);
+            };
+            const img = document.createElement('img');
+            img.src = src.thumbnail;
+            img.style.cssText = 'width:100%; border-radius:6px; aspect-ratio:16/9; object-fit:cover;';
+            const label = document.createElement('span');
+            label.textContent = src.name;
+            label.style.cssText = 'color:#e5e7eb; font-size:11px; font-family:Inter,sans-serif; font-weight:500; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;';
+            card.appendChild(img);
+            card.appendChild(label);
+            grid.appendChild(card);
+          });
+          overlay.style.display = 'flex';
+        });
+      }
+      function cancelScreenPick() {
+        document.getElementById('screen-picker-overlay').style.display = 'none';
+        if (window.electronBridge) window.electronBridge.cancelScreenPicker();
+      }
+    </script>
+
   </main>
 </body>
 </html>
