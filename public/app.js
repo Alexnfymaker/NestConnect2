@@ -46,6 +46,7 @@ let isSharingScreen = false;
 
 let audioContext = null;
 const speechIntervals = {};
+const volumeNodes = {}; // peerId -> GainNode
 
 // Dictionary map of socket.id -> RTCPeerConnection and Video Element data
 const peers = {}; 
@@ -56,6 +57,14 @@ const iceServers = {
     { urls: 'stun:global.stun.twilio.com:3478' }
   ]
 };
+
+// UI Elements for Volume
+const volumeModal = document.getElementById('volume-modal');
+const volumeSlider = document.getElementById('volume-slider');
+const volumePercent = document.getElementById('volume-percent');
+const volumeTargetName = document.getElementById('volume-target-name');
+const btnCloseVolume = document.getElementById('btn-close-volume');
+let activeVolumePeerId = null;
 
 // Utils
 function showToast(msg) {
@@ -91,14 +100,21 @@ function monitorSpeech(stream, wrapperId, peerId = 'local') {
     
     // Create source from the stream directly
     const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser); 
     
-    // Fix for Chrome/Edge WebRTC audio bug: WebAudio API intercepts the remote stream and mutes it.
-    // We must route remote streams explicitly to the speakers.
+    // For remote users, inject a GainNode for volume control before destination
     if (peerId !== 'local') {
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = 1.0;
+      volumeNodes[peerId] = gainNode;
+      
+      source.connect(gainNode);
+      gainNode.connect(analyser);
       analyser.connect(audioContext.destination);
+      
       const videoEl = document.getElementById(`video-${peerId}`);
       if (videoEl) videoEl.muted = true; // prevent double playback
+    } else {
+      source.connect(analyser); 
     }
     
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
@@ -392,6 +408,21 @@ function addVideoStream(socketId, number, nickname = 'User') {
   
   wrapper.addEventListener('click', () => toggleFullscreen(wrapper));
   
+  // Right click for volume control
+  wrapper.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (socketId === 'local') return; // Don't control own volume this way
+    
+    activeVolumePeerId = socketId;
+    volumeTargetName.textContent = `${nickname} (${number})`;
+    
+    const currentVol = volumeNodes[socketId] ? volumeNodes[socketId].gain.value : 1.0;
+    volumeSlider.value = currentVol;
+    volumePercent.textContent = Math.round(currentVol * 100) + '%';
+    
+    volumeModal.classList.remove('hidden');
+  });
+  
   videoGrid.appendChild(wrapper);
 }
 
@@ -617,3 +648,17 @@ if (btnThemeToggle) {
     document.body.classList.toggle('dark-mode');
   });
 }
+
+// Volume Controls
+volumeSlider.addEventListener('input', () => {
+  const val = parseFloat(volumeSlider.value);
+  volumePercent.textContent = Math.round(val * 100) + '%';
+  if (activeVolumePeerId && volumeNodes[activeVolumePeerId]) {
+    volumeNodes[activeVolumePeerId].gain.value = val;
+  }
+});
+
+btnCloseVolume.addEventListener('click', () => {
+  volumeModal.classList.add('hidden');
+  activeVolumePeerId = null;
+});
