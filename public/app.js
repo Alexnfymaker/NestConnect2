@@ -73,6 +73,13 @@ const inviterNumberEl       = document.getElementById('inviter-number');
 const btnRejectInvite       = document.getElementById('btn-reject-invite');
 const btnAcceptInvite       = document.getElementById('btn-accept-invite');
 
+// Call Active Pill
+const callActivePill = document.getElementById('call-active-pill');
+
+// Sounds
+const audioLeave = document.getElementById('audio-leave');
+const audioRing  = document.getElementById('audio-ring');
+
 // ═══════════════════════════════════════
 //  State
 // ═══════════════════════════════════════
@@ -122,6 +129,12 @@ function showToast(msg) {
 function showScreen(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   screen.classList.add('active');
+  // Show the pill whenever we navigate away from the room screen while in a call
+  if (currentRoom && screen.id !== 'room-screen') {
+    callActivePill.classList.remove('hidden');
+  } else {
+    callActivePill.classList.add('hidden');
+  }
 }
 
 function showAppScreen(screen) {
@@ -191,7 +204,46 @@ function onLoggedIn(user) {
   loginScreen.classList.remove('active');
   mainApp.classList.remove('hidden');
   showAppScreen(dashboardScreen);
+  // Directly populate UI from the already-fetched user object, then refresh
+  renderFriendsFromUser(user);
+  // Also do a full refresh to make sure everything is up to date
   updateFriendsUI();
+}
+
+function renderFriendsFromUser(user) {
+  // Pending requests on dashboard
+  pendingRequestsList.innerHTML = '';
+  if (!user.friendRequests || user.friendRequests.length === 0) {
+    pendingRequestsList.innerHTML = '<p class="dash-sub" style="margin-top:4px">No pending requests</p>';
+  } else {
+    user.friendRequests.forEach(rid => {
+      const div = document.createElement('div');
+      div.className = 'request-item';
+      div.innerHTML = `<span>ID: <strong>${rid}</strong></span><button class="btn-accept-small">Accept</button>`;
+      div.querySelector('button').onclick = () => acceptFriend(rid);
+      pendingRequestsList.appendChild(div);
+    });
+  }
+
+  // Friends list in chat sidebar
+  friendsListContainer.innerHTML = '';
+  if (!user.friends || user.friends.length === 0) {
+    friendsListContainer.innerHTML = '<p class="dash-sub" style="padding:20px">No friends yet — add one via ID!</p>';
+  } else {
+    user.friends.forEach(fid => {
+      const div = document.createElement('div');
+      div.className = `friend-item ${activeChatFriendId === fid ? 'active' : ''}`;
+      const initials = fid.substring(0, 2);
+      div.innerHTML = `
+        <div class="friend-avatar">${initials}</div>
+        <div class="friend-info">
+          <span class="friend-name">Friend #${fid}</span>
+          <span class="friend-status">Click to chat</span>
+        </div>`;
+      div.onclick = () => selectChat(fid);
+      friendsListContainer.appendChild(div);
+    });
+  }
 }
 
 function toggleAuthMode(reg) {
@@ -219,6 +271,14 @@ btnLogout.addEventListener('click', async () => { await fetch('/api/logout', { m
 // ═══════════════════════════════════════
 //  Navigation
 // ═══════════════════════════════════════
+// Return to active call from anywhere (called via onclick on the pill)
+function returnToCall() {
+  if (currentRoom) {
+    showAppScreen(roomScreen);
+  }
+}
+window.returnToCall = returnToCall;
+
 document.querySelectorAll('.nav-link').forEach(link => {
   link.onclick = (e) => {
     e.preventDefault();
@@ -656,6 +716,8 @@ function leaveRoom() {
   isSharingScreen = false;
   currentRoom = null;
   currentRoomIdEl.textContent = '';
+  // Play leave sound
+  try { audioLeave.currentTime = 0; audioLeave.play().catch(() => {}); } catch(e) {}
   showAppScreen(dashboardScreen);
 }
 
@@ -790,10 +852,14 @@ socket.on('invitation', ({ callerNickname, callerNumber, roomId }) => {
   currentInviter = callerNumber;
   inviterNumberEl.textContent = `${callerNickname} (${callerNumber})`;
   incomingInviteOverlay.classList.remove('hidden');
+  // Play ring sound on loop
+  try { audioRing.currentTime = 0; audioRing.play().catch(() => {}); } catch(e) {}
 });
 
 btnAcceptInvite.addEventListener('click', async () => {
   incomingInviteOverlay.classList.add('hidden');
+  // Stop ring sound
+  try { audioRing.pause(); audioRing.currentTime = 0; } catch(e) {}
   const hasMedia = await getMedia();
   if (!hasMedia) return;
   socket.emit('join-room', { roomId: currentInviteRoom, nickname: currentUser.nickname, id: myNumber });
@@ -801,6 +867,8 @@ btnAcceptInvite.addEventListener('click', async () => {
 
 btnRejectInvite.addEventListener('click', () => {
   incomingInviteOverlay.classList.add('hidden');
+  // Stop ring sound
+  try { audioRing.pause(); audioRing.currentTime = 0; } catch(e) {}
   currentInviteRoom = null;
   currentInviter = null;
 });

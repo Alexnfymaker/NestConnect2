@@ -15,7 +15,7 @@
   <main class="app-container">
 
     <!-- ── Login Screen ── -->
-    <section id="login-screen" class="screen active">
+    <section id="login-screen" class="screen active" style="display:flex;flex-direction:column;">
       <div class="dashboard-wrap">
         <div class="dashboard-card auth-card">
           <div class="dashboard-icon-wrap">
@@ -201,6 +201,16 @@
         <div class="invite-actions"><button class="btn-decline-call" id="btn-reject-invite">Cancel</button><button class="btn-accept-call" id="btn-accept-invite">Join</button></div>
       </div>
     </div>
+
+    <!-- ── Call Active Floating Pill ── -->
+    <div id="call-active-pill" class="hidden" onclick="returnToCall()">
+      <span class="pill-dot"></span>
+      📞 Call Active — Return
+    </div>
+
+    <!-- ── Audio Elements ── -->
+    <audio id="audio-leave" src="https://image2url.com/r2/default/audio/1774801535700-cb574d52-d50d-4a26-90ea-17da26aa2318.mp3" preload="auto"></audio>
+    <audio id="audio-ring" src="https://image2url.com/r2/default/audio/1774801683234-d2ff66c9-a510-47d0-a6d0-267a4a641329.mp3" preload="auto" loop></audio>
 
     <div id="toast" class="toast hidden"></div>
 
