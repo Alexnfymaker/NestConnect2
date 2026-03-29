@@ -705,9 +705,9 @@ function monitorSpeech(stream, wrapperId, peerId = 'local') {
       }
       source.connect(gainNode);
       gainNode.connect(analyser);
-      analyser.connect(audioContext.destination);
-      const videoEl = document.getElementById(`video-${peerId}`);
-      if (videoEl) videoEl.muted = true;
+      // Removed: analyser.connect(audioContext.destination); 
+      // We want to hear the NATIVE video element audio, NOT the analyzed stream.
+      // Removed: videoEl.muted = true;
     } else {
       source.connect(analyser);
     }

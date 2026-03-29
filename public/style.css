@@ -406,8 +406,10 @@ body::before {
 .video-wrapper:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 
 .video-wrapper.is-speaking {
-  border-color: #22c55e;
-  box-shadow: 0 0 0 3px rgba(34,197,94,.25);
+  border-color: #22c55e !important;
+  box-shadow: 0 0 0 4px rgba(34,197,94,.4), 0 0 20px rgba(34,197,94,.3);
+  transform: scale(1.02);
+  z-index: 10;
 }
 
 .video-wrapper video {
