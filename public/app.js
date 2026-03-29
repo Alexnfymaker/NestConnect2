@@ -609,3 +609,11 @@ socket.on('call-error', ({ message }) => {
   showToast(message);
   if (!currentRoom) stopMedia();
 });
+
+// Theme Toggle
+const btnThemeToggle = document.getElementById('btn-theme-toggle');
+if (btnThemeToggle) {
+  btnThemeToggle.addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+  });
+}
