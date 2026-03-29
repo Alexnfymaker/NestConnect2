@@ -153,9 +153,15 @@ async function checkMe() {
     if (res.ok) {
       onLoggedIn(await res.json());
     } else {
+      mainApp.classList.add('hidden');
+      mainApp.style.display = 'none';
+      loginScreen.style.display = 'flex';
       showScreen(loginScreen);
     }
   } catch (e) {
+    mainApp.classList.add('hidden');
+    mainApp.style.display = 'none';
+    loginScreen.style.display = 'flex';
     showScreen(loginScreen);
   }
 }
@@ -201,8 +207,12 @@ function onLoggedIn(user) {
 
   socket.emit('identify', { id: user.id });
 
+  // Explicitly hide login and show main app
   loginScreen.classList.remove('active');
+  loginScreen.style.display = 'none'; // Force hide
   mainApp.classList.remove('hidden');
+  mainApp.style.display = 'flex'; // Force show as flex
+  
   showAppScreen(dashboardScreen);
   // Directly populate UI from the already-fetched user object, then refresh
   renderFriendsFromUser(user);
