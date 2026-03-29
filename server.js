@@ -170,27 +170,6 @@ io.on('connection', (socket) => {
     socket.join(roomId);
     socket.roomId = roomId;
     socket.emit('room-created', { roomId });
-
-    // ALERT ALL ONLINE FRIENDS
-    // We look up the full user object to find their friends list
-    try {
-      const users = getUsers();
-      const user = Object.values(users).find(u => u.id === id);
-      if (user && user.friends) {
-        user.friends.forEach(friendId => {
-          const friendSocketId = idToSocketId.get(friendId);
-          if (friendSocketId) {
-            io.to(friendSocketId).emit('invitation', { 
-              callerNumber: id, 
-              callerNickname: nickname || 'User', 
-              roomId 
-            });
-          }
-        });
-      }
-    } catch (e) {
-      console.error('Failed to notify friends of meeting:', e);
-    }
   });
 
   socket.on('join-room', ({ roomId, nickname, id }) => {
