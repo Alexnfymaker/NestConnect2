@@ -205,6 +205,20 @@
       </div>
     </div>
 
+    <!-- ── Zoom Modal (Pseudo-Fullscreen) ── -->
+    <div id="zoom-overlay" class="modal-overlay hidden">
+      <div class="zoom-container">
+        <video id="zoom-video" autoplay playsinline></video>
+        <div class="zoom-controls">
+          <div class="zoom-label" id="zoom-info-label">User's Stream</div>
+          <button class="btn-close-zoom" id="btn-close-zoom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <span>Close Zoom</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Toast ── -->
     <div id="toast" class="toast hidden"></div>
 

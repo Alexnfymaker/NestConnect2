@@ -32,6 +32,13 @@ const btnAcceptInvite = document.getElementById('btn-accept-invite');
 
 const toastEl = document.getElementById('toast');
 
+// Zoom UI
+const zoomOverlay = document.getElementById('zoom-overlay');
+const zoomVideo = document.getElementById('zoom-video');
+const zoomInfoLabel = document.getElementById('zoom-info-label');
+const btnCloseZoom = document.getElementById('btn-close-zoom');
+let currentlyZoomedWrapper = null;
+
 // State
 let myNumber = '';
 let currentRoom = null;
@@ -406,7 +413,7 @@ function addVideoStream(socketId, number, nickname = 'User') {
     <div class="video-label">${nickname} (${number})</div>
   `;
   
-  wrapper.addEventListener('click', () => toggleFullscreen(wrapper));
+  wrapper.addEventListener('click', () => openZoomModal(wrapper, `${nickname} (${number})`));
   
   // Right click for volume control
   wrapper.addEventListener('contextmenu', (e) => {
@@ -426,23 +433,35 @@ function addVideoStream(socketId, number, nickname = 'User') {
   videoGrid.appendChild(wrapper);
 }
 
-function toggleFullscreen(wrapper) {
-  const videoEl = wrapper.querySelector('video');
-  if (!videoEl) return;
+function openZoomModal(wrapper, infoText) {
+  const originalVideo = wrapper.querySelector('video');
+  if (!originalVideo || !originalVideo.srcObject) return;
   
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    if (videoEl.requestFullscreen) videoEl.requestFullscreen();
-    else if (videoEl.webkitEnterFullscreen) videoEl.webkitEnterFullscreen(); // iOS Safari specific
-    else if (videoEl.webkitRequestFullscreen) videoEl.webkitRequestFullscreen();
+  zoomVideo.srcObject = originalVideo.srcObject;
+  zoomInfoLabel.textContent = infoText;
+  
+  // Apply mirror to local video if zoomed
+  if (wrapper.id === 'wrapper-local' && !isSharingScreen) {
+    zoomVideo.style.transform = 'scaleX(-1)';
   } else {
-    if (document.exitFullscreen) document.exitFullscreen();
-    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    zoomVideo.style.transform = 'none';
   }
+  
+  zoomOverlay.classList.remove('hidden');
+  currentlyZoomedWrapper = wrapper;
 }
 
-// Make local video clickable for fullscreen too
+function closeZoomModal() {
+  zoomOverlay.classList.add('hidden');
+  zoomVideo.srcObject = null;
+  currentlyZoomedWrapper = null;
+}
+
+// Make local video clickable for zoom modal too
 document.getElementById('wrapper-local').addEventListener('click', function() {
-  toggleFullscreen(this);
+  const label = this.querySelector('#local-nickname-label').textContent;
+  const num = this.querySelector('#local-number-label').textContent;
+  openZoomModal(this, `${label} (${num})`);
 });
 
 // Room logic
@@ -661,4 +680,9 @@ volumeSlider.addEventListener('input', () => {
 btnCloseVolume.addEventListener('click', () => {
   volumeModal.classList.add('hidden');
   activeVolumePeerId = null;
+});
+
+btnCloseZoom.addEventListener('click', closeZoomModal);
+zoomOverlay.addEventListener('click', (e) => {
+  if (e.target === zoomOverlay) closeZoomModal();
 });

@@ -607,6 +607,75 @@ a      { text-decoration: none; color: inherit; }
 }
 
 /* ════════════════════════════════════════
+   Zoom Modal (Pseudo-Fullscreen)
+════════════════════════════════════════ */
+.zoom-container {
+  width: 92vw;
+  height: 92vh;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid rgba(255,255,255,0.1);
+  animation: zoomIn .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+#zoom-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.zoom-controls {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+
+.zoom-label {
+  background: rgba(15,15,30,.8);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.btn-close-zoom {
+  background: var(--danger);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+  transition: var(--transition);
+  box-shadow: 0 4px 12px rgba(220,38,38,0.3);
+}
+
+.btn-close-zoom:hover { transform: scale(1.05); opacity: 0.9; }
+.btn-close-zoom svg { width: 16px; height: 16px; }
+
+/* ════════════════════════════════════════
    Toast
 ════════════════════════════════════════ */
 .toast {
