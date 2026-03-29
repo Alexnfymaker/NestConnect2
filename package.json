@@ -1,18 +1,27 @@
 {
-  "name": "nestconnect",
-  "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
-  }
+    "app_name": "NestConnect",
+    "author": "",
+    "dependencies": {
+        "express": "^5.2.1",
+        "socket.io": "^4.8.3"
+    },
+    "license": "ISC",
+    "main": "server.js",
+    "name": "nestconnect",
+    "scripts": {
+        "start": "node server.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "type": "commonjs",
+    "version": "1.0.0",
+    "webkit": {},
+    "window": {
+        "frame": true,
+        "id": "NestConnect",
+        "resizable": true,
+        "show": true,
+        "show_in_taskbar": true,
+        "title": "NestConnect",
+        "visible": true
+    }
 }

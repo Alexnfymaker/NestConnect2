@@ -124,6 +124,45 @@ function monitorSpeech(stream, wrapperId, peerId = 'local') {
 }
 
 // Media
+function createDummyVideoTrack() {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 640;
+    canvas.height = 480;
+    const ctx = canvas.getContext('2d');
+    
+    const drawInterval = setInterval(() => {
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '30px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Camera Off', canvas.width/2, canvas.height/2);
+      
+      ctx.fillStyle = 'rgba(255,255,255,0.1)';
+      const size = 50 + Math.sin(Date.now() / 500) * 20;
+      ctx.beginPath();
+      ctx.arc(canvas.width/2, canvas.height/2 + 60, size, 0, Math.PI * 2);
+      ctx.fill();
+    }, 100);
+
+    const stream = canvas.captureStream ? canvas.captureStream(10) : canvas.mozCaptureStream(10);
+    const track = stream.getVideoTracks()[0];
+    
+    const originalStop = track.stop.bind(track);
+    track.stop = () => {
+      clearInterval(drawInterval);
+      originalStop();
+    };
+    
+    return track;
+  } catch (e) {
+    console.warn('captureStream not supported, skipping dummy track', e);
+    return null;
+  }
+}
+
 async function getMedia() {
   if (!navigator.mediaDevices) {
     showToast('Browser blocked camera/mic (Requires secure HTTPS or localhost).');
@@ -132,6 +171,10 @@ async function getMedia() {
   
   try {
     localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
+    if (localStream.getVideoTracks().length === 0) {
+      const dummy = createDummyVideoTrack();
+      if (dummy) localStream.addTrack(dummy);
+    }
     localVideo.srcObject = localStream;
     // Set fallback video state
     toggleAudio(false);
@@ -142,6 +185,8 @@ async function getMedia() {
     console.warn('Could not get video+audio, trying audio only...');
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      const dummy = createDummyVideoTrack();
+      if (dummy) localStream.addTrack(dummy);
       localVideo.srcObject = localStream;
       toggleVideo(true); // Force mute UI
       monitorSpeech(localStream, 'wrapper-local', 'local');
@@ -242,7 +287,8 @@ async function startScreenShare() {
     
     localVideo.srcObject = screenStream;
     document.getElementById('wrapper-local').classList.add('sharing');
-    btnScreenShare.classList.add('disabled');
+    btnScreenShare.classList.add('ctrl-btn--share');
+    btnScreenShare.title = 'Stop Sharing';
     
     newVideoTrack.onended = stopScreenShare;
   } catch(e) {
@@ -275,7 +321,8 @@ async function stopScreenShare() {
   
   localVideo.srcObject = localStream;
   document.getElementById('wrapper-local').classList.remove('sharing');
-  btnScreenShare.classList.remove('disabled');
+  btnScreenShare.classList.remove('ctrl-btn--share');
+  btnScreenShare.title = 'Share Screen';
   if (screenStream) {
     screenStream.getTracks().forEach(t => t.stop());
     screenStream = null;
