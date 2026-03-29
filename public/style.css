@@ -46,9 +46,11 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  height: 100%;
+  height: 100vh;
   width: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 button { cursor: pointer; border: none; background: none; font-family: inherit; }
 input  { font-family: inherit; }
@@ -186,6 +188,8 @@ a      { text-decoration: none; color: inherit; }
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
 }
 
 .dashboard-card {
@@ -719,22 +723,38 @@ a      { text-decoration: none; color: inherit; }
 /* ════════════════════════════════════════
    Auth Custom
 ════════════════════════════════════════ */
-.auth-card { padding: 48px 40px; }
+.auth-card { 
+  padding: 48px 40px;
+  animation: authFadeIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes authFadeIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .auth-toggle { margin-top: 12px; font-size: 13px; color: var(--text-2); }
 .auth-toggle a { color: var(--accent); font-weight: 600; text-decoration: underline; }
 
 /* ════════════════════════════════════════
    Explorer Grid (Dashboard Post-Login)
+   Centered properly for premium aesthetic
 ════════════════════════════════════════ */
 .explorer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  align-content: center;
+  gap: 32px;
   width: 100%;
-  max-width: 1000px;
-  padding: 40px 20px;
+  max-width: 1100px;
+  padding: 40px 24px;
+  margin: auto;
+  min-height: 0;
 }
-.explorer-grid .dashboard-card { max-width: none; }
+.explorer-grid .dashboard-card { 
+  flex: 1 1 360px;
+  max-width: 420px;
+}
 
 .requests-list {
   width: 100%;
