@@ -110,16 +110,20 @@ function monitorSpeech(stream, wrapperId, peerId = 'local') {
     
     // For remote users, inject a GainNode for volume control before destination
     if (peerId !== 'local') {
-      const gainNode = audioContext.createGain();
-      gainNode.gain.value = 1.0;
-      volumeNodes[peerId] = gainNode;
+      // Check if we already have a GainNode for this peer to reuse it
+      let gainNode = volumeNodes[peerId];
+      if (!gainNode) {
+        gainNode = audioContext.createGain();
+        gainNode.gain.value = 1.0;
+        volumeNodes[peerId] = gainNode;
+      }
       
       source.connect(gainNode);
-      gainNode.connect(analyser);
-      analyser.connect(audioContext.destination);
+      gainNode.connect(analyser); // Analyser still works for speaking rings
+      analyser.connect(audioContext.destination); // Route to speakers
       
       const videoEl = document.getElementById(`video-${peerId}`);
-      if (videoEl) videoEl.muted = true; // prevent double playback
+      if (videoEl) videoEl.muted = true; // prevent double playback outside WebAudio
     } else {
       source.connect(analyser); 
     }

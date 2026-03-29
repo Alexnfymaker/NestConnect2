@@ -22,18 +22,18 @@
 }
 
 body.dark-mode {
-  --bg:          #0f172a;
-  --surface:     #1e293b;
-  --border:      #334155;
-  --accent:      #3b82f6;
-  --accent-dark: #2563eb;
-  --accent-light:#1e3a8a;
-  --text:        #f8fafc;
-  --text-2:      #94a3b8;
-  --text-3:      #64748b;
-  --shadow-sm:   0 1px 4px rgba(0,0,0,.3);
-  --shadow:      0 4px 20px rgba(0,0,0,.4);
-  --shadow-lg:   0 12px 40px rgba(0,0,0,.5);
+  --bg:          #000000;
+  --surface:     #0a0a0a;
+  --border:      #1a1a1a;
+  --accent:      #1a56db;
+  --accent-dark: #1e40af;
+  --accent-light:#000000;
+  --text:        #ffffff;
+  --text-2:      #a1a1aa;
+  --text-3:      #52525b;
+  --shadow-sm:   0 0 0 1px #1a1a1a;
+  --shadow:      0 8px 32px rgba(0,0,0,0.8);
+  --shadow-lg:   0 12px 48px rgba(0,0,0,1);
 }
 
 /* ── Reset ── */
