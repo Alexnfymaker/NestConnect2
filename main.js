@@ -11,6 +11,8 @@ function createWindow() {
     minHeight: 600,
     title: "NestConnect",
     backgroundColor: '#0a0a0a',
+    fullscreen: false,
+    autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -68,6 +70,14 @@ function createWindow() {
 
 app.whenReady().then(() => {
   createWindow();
+
+  // Set app to autostart on Windows
+  if (process.platform === 'win32') {
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      path: app.getPath('exe')
+    });
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
