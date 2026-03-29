@@ -80,6 +80,11 @@ const callActivePill = document.getElementById('call-active-pill');
 const audioLeave = document.getElementById('audio-leave');
 const audioRing  = document.getElementById('audio-ring');
 
+// Settings Modal
+const settingsModal    = document.getElementById('settings-modal');
+const videoSourceSelect = document.getElementById('video-source-select');
+const audioSourceSelect = document.getElementById('audio-source-select');
+
 // ═══════════════════════════════════════
 //  State
 // ═══════════════════════════════════════
@@ -462,38 +467,74 @@ function createDummyVideoTrack() {
   } catch (e) { return null; }
 }
 
-async function getMedia() {
-  if (!navigator.mediaDevices) {
-    showToast('Browser blocked camera/mic (HTTPS required).');
-    return false;
-  }
+// ── Camera/Mic selection ──
+async function populateDevices() {
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true });
-    if (!localStream.getVideoTracks().length) {
-      const dummy = createDummyVideoTrack();
-      if (dummy) localStream.addTrack(dummy);
-    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoSourceSelect.innerHTML = '';
+    audioSourceSelect.innerHTML = '';
+    
+    devices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      if (device.kind === 'videoinput') {
+        option.text = device.label || `Camera ${videoSourceSelect.length + 1}`;
+        videoSourceSelect.appendChild(option);
+      } else if (device.kind === 'audioinput') {
+        option.text = device.label || `Microphone ${audioSourceSelect.length + 1}`;
+        audioSourceSelect.appendChild(option);
+      }
+    });
+  } catch (e) { console.error('Error enumerating devices', e); }
+}
+
+async function getMedia() {
+  if (localStream) return true;
+  try {
+    const videoId = videoSourceSelect.value;
+    const audioId = audioSourceSelect.value;
+    
+    const constraints = {
+      audio: audioId ? { deviceId: { exact: audioId } } : true,
+      video: videoId ? { deviceId: { exact: videoId } } : { width: 1280, height: 720 }
+    };
+
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
     localVideo.srcObject = localStream;
-    toggleAudio(false);
-    toggleVideo(false);
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
-  } catch (err) {
-    console.warn('No video+audio, trying audio only...');
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-      const dummy = createDummyVideoTrack();
-      if (dummy) localStream.addTrack(dummy);
-      localVideo.srcObject = localStream;
-      toggleVideo(true);
-      monitorSpeech(localStream, 'wrapper-local', 'local');
-      showToast('Camera not available — audio only.');
-      return true;
-    } catch (err2) {
-      showToast('Failed to access camera/microphone.');
-      return false;
+  } catch (e) {
+    showToast('Could not access camera/mic');
+    return false;
+  }
+}
+
+// Re-fetch media when selection changes
+videoSourceSelect.onchange = async () => {
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
+    await getMedia();
+    for (const peer of Object.values(peers)) {
+      const videoTrack = localStream.getVideoTracks()[0];
+      const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender && videoTrack) sender.replaceTrack(videoTrack).catch(() => {});
     }
   }
+};
+audioSourceSelect.onchange = async () => {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    for (const peer of Object.values(peers)) {
+      const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+      if (sender && audioTrack) sender.replaceTrack(audioTrack).catch(() => {});
+    }
+  }
+};
+
+function openSettings() {
+  populateDevices();
+  settingsModal.classList.remove('hidden');
 }
 
 function stopMedia() {
@@ -536,7 +577,38 @@ btnVideo.addEventListener('click', () => toggleVideo());
 // ═══════════════════════════════════════
 async function startScreenShare() {
   try {
-    screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    if (window.electronBridge) {
+      // In Electron, we use the bridge to show our professional picker
+      const sourceId = await new Promise((resolve) => {
+        window.electronBridge.onShowScreenPicker(() => {});
+        const originalSelect = window.electronBridge.selectScreen;
+        window.electronBridge.selectScreen = (id) => {
+          originalSelect(id);
+          resolve(id);
+        };
+        const originalCancel = window.electronBridge.cancelScreenPicker;
+        window.electronBridge.cancelScreenPicker = () => {
+          originalCancel();
+          resolve(null);
+        };
+      });
+
+      if (!sourceId) return;
+
+      screenStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          mandatory: {
+            chromeMediaSource: 'desktop',
+            chromeMediaSourceId: sourceId
+          }
+        }
+      });
+    } else {
+      // Standard browser share
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+    }
+
     isSharingScreen = true;
     const newVideoTrack = screenStream.getVideoTracks()[0];
     for (const [targetSocketId, peer] of Object.entries(peers)) {
@@ -556,6 +628,7 @@ async function startScreenShare() {
     document.getElementById('wrapper-local').classList.add('sharing');
     newVideoTrack.onended = stopScreenShare;
   } catch (e) {
+    console.error('Screen sharing error:', e);
     if (e.name !== 'NotAllowedError') showToast('Screen sharing failed');
   }
 }
