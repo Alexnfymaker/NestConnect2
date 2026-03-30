@@ -75,6 +75,9 @@ const screenPickerModal = document.getElementById('screen-picker-modal');
 const screenPickerList  = document.getElementById('screen-picker-list');
 const btnClosePicker    = document.getElementById('btn-close-picker');
 
+// Microphone Volume
+let micGain = null;
+
 // Room Codes
 const joinRoomInput     = document.getElementById('join-room-input');
 const btnJoinByCode     = document.getElementById('btn-join-by-code');
@@ -502,20 +505,51 @@ async function getMedia() {
   try {
     const v = videoSourceSelect.value;
     const a = audioSourceSelect.value;
-    localStream = await navigator.mediaDevices.getUserMedia({
+    const originalStream = await navigator.mediaDevices.getUserMedia({
       video: v ? { deviceId: { ideal: v } } : true,
       audio: a ? { deviceId: { ideal: a } } : true
     });
-    if (localStream.getVideoTracks().length === 0) {
+    
+    // Apply mic gain
+    if (!audioContext) audioContext = new AudioContext();
+    const audioTrack = originalStream.getAudioTracks()[0];
+    if (audioTrack) {
+      const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+      micGain = audioContext.createGain();
+      micGain.gain.value = parseFloat(localStorage.getItem('nexus-mic-volume') || 1);
+      source.connect(micGain);
+      const dest = audioContext.createMediaStreamDestination();
+      micGain.connect(dest);
+      localStream = new MediaStream([dest.stream.getAudioTracks()[0]]);
+    } else {
+      localStream = new MediaStream();
+    }
+    
+    // Add video track
+    const videoTrack = originalStream.getVideoTracks()[0];
+    if (videoTrack) {
+      localStream.addTrack(videoTrack);
+    } else {
       const dummy = createDummyVideoTrack();
       if (dummy) localStream.addTrack(dummy);
     }
+    
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      const originalStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      const audioTrack = originalStream.getAudioTracks()[0];
+      if (!audioContext) audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
+      micGain = audioContext.createGain();
+      micGain.gain.value = parseFloat(localStorage.getItem('nexus-mic-volume') || 1);
+      source.connect(micGain);
+      const dest = audioContext.createMediaStreamDestination();
+      micGain.connect(dest);
+      localStream = new MediaStream([dest.stream.getAudioTracks()[0]]);
+      
       const dummy = createDummyVideoTrack();
       if (dummy) localStream.addTrack(dummy);
       localVideo.srcObject = localStream;
@@ -653,7 +687,33 @@ btnSendMeetingInvite.onclick = () => {
 };
 
 function openSettings() {
-  document.getElementById('settings-modal').classList.remove('hidden');
+  settingsModal.classList.remove('hidden');
+  
+  // Add mic volume control if not exists
+  if (!document.getElementById('mic-volume-container')) {
+    const container = document.createElement('div');
+    container.id = 'mic-volume-container';
+    container.style.cssText = 'margin-top: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-input);';
+    container.innerHTML = `
+      <label for="mic-volume" style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text);">Microphone Volume</label>
+      <input type="range" id="mic-volume" min="0" max="2" step="0.1" value="${localStorage.getItem('nexus-mic-volume') || 1}" style="width: 100%;">
+      <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 12px; color: var(--text-3);">
+        <span>Quiet</span>
+        <span id="mic-volume-value">${localStorage.getItem('nexus-mic-volume') || 1}x</span>
+        <span>Loud</span>
+      </div>
+    `;
+    settingsModal.appendChild(container);
+    
+    const micVolumeInput = document.getElementById('mic-volume');
+    const micVolumeValue = document.getElementById('mic-volume-value');
+    micVolumeInput.oninput = () => {
+      const val = parseFloat(micVolumeInput.value);
+      micVolumeValue.textContent = val + 'x';
+      localStorage.setItem('nexus-mic-volume', val);
+      if (micGain) micGain.gain.value = val;
+    };
+  }
 }
 
 socket.on('room-joined', ({ roomId, users }) => {
