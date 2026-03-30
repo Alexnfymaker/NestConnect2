@@ -108,6 +108,59 @@ input {
   color: var(--bg);
 }
 
+.sidebar-user {
+  padding: 0 12px 24px;
+}
+
+.user-pill {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.user-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.user-status {
+  font-size: 10px;
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.status-dot {
+  width: 5px;
+  height: 5px;
+  background: var(--success);
+  border-radius: 50%;
+}
+
 .brand-name {
   font-size: 18px;
   font-weight: 800;
@@ -234,38 +287,22 @@ input {
   display: block;
 }
 
-#login-screen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  background: var(--bg);
-}
-
-.login-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 40px;
-  width: 400px;
-  text-align: center;
-}
-
-/* Dashboard Explorer */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: 380px 1fr;
-  gap: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.card {
+.widget {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
+
+.widget-blue { 
+  background: var(--accent); 
+  color: var(--bg); 
+}
+.widget-blue h3, .widget-blue p { color: inherit; }
+.widget-blue .btn-widget { background: rgba(0,0,0,0.1); color: inherit; border: 1px solid rgba(0,0,0,0.1); padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 700; width: fit-content; }
 
 /* Dialer - SQUARES */
 .dialer-display {
