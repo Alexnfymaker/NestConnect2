@@ -42,9 +42,7 @@ const btnVideo         = document.getElementById('btn-video');
 const btnScreenShare   = document.getElementById('btn-screen-share');
 const btnLeave         = document.getElementById('btn-leave');
 const pList            = document.getElementById('participant-list');
-const roomMessages     = document.getElementById('room-messages');
-const roomChatInput    = document.getElementById('room-chat-input');
-const btnSendRoomChat  = document.getElementById('btn-send-room-chat');
+// Chat removed per user request
 
 // Direct Chat
 const directChatModal    = document.getElementById('direct-chat-modal');
@@ -674,25 +672,7 @@ btnLeave.onclick = () => {
   }, 300);
 };
 
-// Messaging
-btnSendRoomChat.onclick = () => {
-  const msg = roomChatInput.value.trim();
-  if (!msg) return;
-  socket.emit('room-chat', { msg, sender: currentUser.nickname });
-  addRoomMessage('You', msg, true);
-  roomChatInput.value = '';
-};
-
-socket.on('room-chat', ({ msg, sender }) => addRoomMessage(sender, msg, false));
-
-function addRoomMessage(sender, msg, isMe) {
-  if (roomMessages.querySelector('p')) roomMessages.innerHTML = '';
-  const div = document.createElement('div');
-  div.style.cssText = 'margin-bottom: 20px; word-wrap: break-word; line-height: 1.4;';
-  div.innerHTML = `<span style="font-weight:800; color:${isMe ? 'var(--accent)' : 'var(--text-3)'}; font-size:9px; text-transform: uppercase;">${sender}</span><p style="margin-top:4px; font-size:13px;">${msg}</p>`;
-  roomMessages.appendChild(div);
-  roomMessages.scrollTop = roomMessages.scrollHeight;
-}
+// Chat functionality removed per user request
 
 // Media toggles
 btnMute.onclick = () => {
