@@ -75,6 +75,17 @@ const screenPickerModal = document.getElementById('screen-picker-modal');
 const screenPickerList  = document.getElementById('screen-picker-list');
 const btnClosePicker    = document.getElementById('btn-close-picker');
 
+// Room Codes
+const joinRoomInput     = document.getElementById('join-room-input');
+const btnJoinByCode     = document.getElementById('btn-join-by-code');
+const roomCodeDisplay   = document.getElementById('room-code-display');
+
+// Meeting Invitation
+const meetingInviteModal = document.getElementById('meeting-invite-modal');
+const inviteNexusIdInput = document.getElementById('invite-nexus-id');
+const btnOpenInviteModal = document.getElementById('btn-open-invite-modal');
+const btnSendMeetingInvite = document.getElementById('btn-send-meeting-invite');
+
 // Utilities
 const toastEl = document.getElementById('toast');
 
@@ -552,6 +563,7 @@ btnDialVideo.onclick = btnDialAudio.onclick = () => {
 };
 
 socket.on('room-created', ({ roomId }) => {
+  roomCodeDisplay.textContent = roomId;
   joinRoom(roomId);
 });
 
@@ -588,11 +600,35 @@ socket.on('invitation-rejected', ({ fromNumber }) => {
 
 async function joinRoom(roomId) {
   currentRoom = roomId;
+  roomCodeDisplay.textContent = roomId;
   const hasMedia = await getMedia();
   switchScreen('room-screen');
   socket.emit('join-room', { roomId, nickname: currentUser.nickname, id: myNumber });
   soundJoinMeeting.play().catch(e => {}); 
 }
+
+// Join by code logic
+btnJoinByCode.onclick = () => {
+  const code = joinRoomInput.value.trim();
+  if (code.length < 4) return showToast('Invalid room code');
+  joinRoom(code);
+};
+
+// Meeting Invite logic
+btnOpenInviteModal.onclick = () => {
+  meetingInviteModal.classList.remove('hidden');
+  inviteNexusIdInput.value = '';
+};
+
+btnSendMeetingInvite.onclick = () => {
+  const targetId = inviteNexusIdInput.value.trim();
+  if (targetId.length !== 6) return showToast('Enter 6-digit target ID');
+  if (targetId === myNumber) return showToast('Cannot invite yourself');
+  
+  socket.emit('invite-friend', { targetId, senderId: myNumber, senderNickname: currentUser.nickname, roomId: currentRoom });
+  meetingInviteModal.classList.add('hidden');
+  showToast(`Invitation sent to #${targetId}`);
+};
 
 function openSettings() {
   document.getElementById('settings-modal').classList.remove('hidden');

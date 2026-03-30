@@ -170,10 +170,11 @@
               </div>
               <div class="widget">
                 <div>
-                  <h3>Schedule</h3>
-                  <p>Plan your future sessions and calendar events.</p>
+                  <h3>Join with Code</h3>
+                  <p>Enter a room code to join an existing session.</p>
+                  <input type="text" id="join-room-input" class="search-input" placeholder="e.g. 7v8n2k9" style="margin-top: 10px; height: 38px; font-size: 13px;">
                 </div>
-                <button class="btn-widget">Open Calendar</button>
+                <button class="btn-widget" id="btn-join-by-code">Join Meeting</button>
               </div>
             </div>
 
@@ -226,9 +227,14 @@
           <div class="side-panel">
             <div class="panel-header">
               <h3 style="font-size: 15px;">Meeting Info</h3>
-              <span class="tag-live">Live</span>
+              <div id="room-code-display" style="font-size: 12px; font-weight: 700; color: var(--accent); background: var(--bg-input); padding: 4px 8px; border-radius: 4px; font-family: monospace;">--------</div>
             </div>
             <div class="panel-content" id="meeting-sidebar-content">
+              <div style="margin-bottom: 24px;">
+                <label style="font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Manage Call</label>
+                <button class="btn-widget" id="btn-open-invite-modal" style="width: 100%; text-align: center; margin-top: 12px; background: var(--accent); color: var(--bg);">+ Invite Participant</button>
+              </div>
+              
               <div>
                 <label style="font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Participants</label>
                 <div id="participant-list" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
@@ -321,7 +327,7 @@
       <p style="color: var(--text-2); margin-bottom: 32px;">Meeting invite from <strong id="inviter-number">------</strong></p>
       
       <div style="display: flex; gap: 16px; justify-content: center;">
-        <button id="btn-reject-invite" style="flex: 1; height: 50px; background: #2a2b48; border-radius: 12px; font-weight: 700;">Decline</button>
+        <button id="btn-reject-invite" style="flex: 1; height: 50px; background: #2a2b48; border-radius: 12px; font-weight: 700;">Hang Up</button>
         <button id="btn-accept-invite" style="flex: 1; height: 50px; background: var(--accent); color: white; border-radius: 12px; font-weight: 700; box-shadow: 0 4px 15px var(--accent-glow);">Accept Call</button>
       </div>
     </div>
@@ -370,6 +376,22 @@
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invitation Modal -->
+  <div id="meeting-invite-modal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div class="card" style="width: 440px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 32px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);">
+      <h2 style="font-size: 18px; margin-bottom: 8px;">Invite to Meeting</h2>
+      <p style="font-size: 13px; color: var(--text-3); margin-bottom: 24px;">Enter a Nexus ID to invite them to this room.</p>
+      <div style="margin-bottom: 24px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Friend's Nexus ID</label>
+        <input type="text" id="invite-nexus-id" class="search-input" placeholder="6-digit ID (e.g. 123456)" style="padding-left: 16px; margin-top: 6px; width: 100%;">
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button onclick="document.getElementById('meeting-invite-modal').classList.add('hidden')" style="flex: 1; height: 50px; background: var(--surface); border-radius: 12px; font-weight: 700;">Cancel</button>
+        <button id="btn-send-meeting-invite" style="flex: 1; height: 50px; background: var(--accent); color: var(--bg); border-radius: 12px; font-weight: 700;">Send Invite</button>
       </div>
     </div>
   </div>
