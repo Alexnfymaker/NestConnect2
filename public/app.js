@@ -103,6 +103,12 @@ function showToast(msg) {
   setTimeout(() => toastEl.classList.add('hidden'), 3500);
 }
 
+function toggleTheme() {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  showToast(isLight ? 'Light Mode Enabled' : 'Dark Mode Enabled');
+}
+
 function switchScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   sidebarNavItems.forEach(item => {
@@ -170,6 +176,7 @@ function onLoggedIn(user) {
   loginScreen.style.display = 'none';
 
   socket.emit('identify', { id: user.id });
+  document.getElementById('my-number-header').textContent = user.id;
   switchScreen('dashboard-screen');
   refreshFriendsUI();
 }
