@@ -587,7 +587,15 @@ function setupPeer(socketId, number, nickname, isOffer) {
   const pc = new RTCPeerConnection(iceServers);
   peers[socketId] = { pc, number, nickname };
   
-  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  // If currently screen sharing, send the screen track instead of camera
+  if (isSharingScreen && screenStream) {
+    const screenVideoTrack = screenStream.getVideoTracks()[0];
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) pc.addTrack(audioTrack, localStream);
+    if (screenVideoTrack) pc.addTrack(screenVideoTrack, screenStream);
+  } else {
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  }
   
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('ice-candidate', { targetSocketId: socketId, candidate: e.candidate });
@@ -694,50 +702,93 @@ btnVideo.onclick = () => {
 };
 
 // Screen sharing
+let savedCameraTrack = null; // Store original camera track
+
+function findVideoSender(pc) {
+  // Try by current track first
+  let sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
+  if (sender) return sender;
+  // Fallback: find by transceiver mid for video
+  if (pc.getTransceivers) {
+    const transceiver = pc.getTransceivers().find(t => t.sender && t.receiver && t.receiver.track && t.receiver.track.kind === 'video');
+    if (transceiver) return transceiver.sender;
+  }
+  // Last resort: return the first sender (there's usually audio first, video second)
+  const senders = pc.getSenders();
+  if (senders.length >= 2) return senders[1]; // video is typically second
+  return senders[0] || null;
+}
+
 btnScreenShare.onclick = async () => {
   if (!isSharingScreen) {
     try {
       screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
       
-      // Update localStream reference so stop work correctly
-      const camTrack = localStream.getVideoTracks()[0];
+      // Save the original camera track before replacing
+      savedCameraTrack = localStream.getVideoTracks()[0];
       
-      Object.values(peers).forEach(p => {
-        const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-        if (sender) sender.replaceTrack(screenTrack);
-      });
+      // Replace the video track in every peer connection
+      let replacedCount = 0;
+      for (const [id, p] of Object.entries(peers)) {
+        const sender = findVideoSender(p.pc);
+        if (sender) {
+          try {
+            await sender.replaceTrack(screenTrack);
+            replacedCount++;
+            console.log(`[ScreenShare] Replaced track for peer ${id}`);
+          } catch (err) {
+            console.error(`[ScreenShare] Failed to replace track for peer ${id}:`, err);
+          }
+        } else {
+          console.warn(`[ScreenShare] No video sender found for peer ${id}`);
+        }
+      }
       
+      // Show screen in local preview
       localVideo.srcObject = screenStream;
       isSharingScreen = true;
       btnScreenShare.classList.add('active');
-      showToast('Screen sharing started');
+      showToast(`Screen sharing started (${replacedCount} peer(s))`);
       
+      // Auto-stop when user clicks "Stop sharing" in browser UI
       screenTrack.onended = () => stopScreenShare();
     } catch (e) {
-      showToast('Screen sharing failed');
+      console.error('[ScreenShare] Error:', e);
+      showToast('Screen sharing cancelled');
     }
   } else {
     stopScreenShare();
   }
 };
 
-function stopScreenShare() {
+async function stopScreenShare() {
   if (!isSharingScreen) return;
   isSharingScreen = false;
   btnScreenShare.classList.remove('active');
+  
+  // Stop screen stream tracks
   if (screenStream) {
     screenStream.getTracks().forEach(t => t.stop());
     screenStream = null;
   }
-  // Restore camera track
-  const camTrack = localStream.getVideoTracks()[0];
-  if (camTrack) {
-    Object.values(peers).forEach(p => {
-      const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender) sender.replaceTrack(camTrack);
-    });
+  
+  // Restore the saved camera track to all peers
+  if (savedCameraTrack) {
+    for (const [id, p] of Object.entries(peers)) {
+      const sender = findVideoSender(p.pc);
+      if (sender) {
+        try {
+          await sender.replaceTrack(savedCameraTrack);
+          console.log(`[ScreenShare] Restored camera for peer ${id}`);
+        } catch (err) {
+          console.error(`[ScreenShare] Failed to restore camera for peer ${id}:`, err);
+        }
+      }
+    }
   }
+  
+  // Restore local preview
   localVideo.srcObject = localStream;
   showToast('Screen sharing stopped');
 }
