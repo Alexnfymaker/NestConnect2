@@ -785,13 +785,27 @@ async function stopScreenShare() {
 
 socket.on('screenshare-started', ({ senderSocketId }) => {
   const vid = document.getElementById(`video-${senderSocketId}`);
-  if (vid) vid.style.objectFit = 'contain';
+  if (vid) {
+    vid.style.objectFit = 'contain';
+    // Force browser to re-bind the decoder to the new track
+    const stream = vid.srcObject;
+    vid.srcObject = null;
+    vid.srcObject = stream;
+    vid.play().catch(e => console.error('Play failed:', e));
+  }
   showToast(`A peer started screen sharing`);
 });
 
 socket.on('screenshare-stopped', ({ senderSocketId }) => {
   const vid = document.getElementById(`video-${senderSocketId}`);
-  if (vid) vid.style.objectFit = 'cover';
+  if (vid) {
+    vid.style.objectFit = 'cover';
+    // Force browser to re-bind back to the camera track
+    const stream = vid.srcObject;
+    vid.srcObject = null;
+    vid.srcObject = stream;
+    vid.play().catch(e => console.error('Play failed:', e));
+  }
 });
 
 function openFullscreenVideo(vidId, name) {
