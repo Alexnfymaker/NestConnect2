@@ -197,7 +197,7 @@
           <div class="video-section">
             <div class="video-grid" id="video-grid">
               <!-- Local Video -->
-              <div class="video-wrapper" id="wrapper-local" onclick="openFullscreenVideo(localStream, 'You')">
+              <div class="video-wrapper" id="wrapper-local" onclick="openFullscreenVideo(localStream, 'You')" oncontextmenu="showVolumeContextMenu(event, 'local', 'You')">
                 <video id="local-video" autoplay playsinline muted></video>
                 <div class="video-label" id="local-label-room">You</div>
               </div>
@@ -379,7 +379,7 @@
         <p style="text-align: center; color: var(--text-3); font-size: 13px; margin-top: 100px;">Loadng chat history...</p>
       </div>
 
-      <div class="chat-input-container" style="background: var(--bg-card);">
+      <div class="chat-input-container">
         <div class="chat-input-wrapper">
           <input type="text" id="direct-chat-input" placeholder="Type a message...">
           <button class="btn-send" id="btn-send-direct-chat">

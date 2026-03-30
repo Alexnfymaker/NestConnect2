@@ -598,6 +598,7 @@ function setupPeer(socketId, number, nickname, isOffer) {
       wrapper.className = 'video-wrapper';
       wrapper.id = `wrapper-${socketId}`;
       wrapper.onclick = () => openFullscreenVideo(e.streams[0], nickname);
+      wrapper.oncontextmenu = (ev) => showVolumeContextMenu(ev, socketId, nickname);
       wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>`;
       videoGrid.appendChild(wrapper);
     }
@@ -767,6 +768,46 @@ function openFullscreenVideo(stream, name) {
   modal.querySelector('button').onclick = () => modal.remove();
   document.body.appendChild(modal);
 }
+
+function showVolumeContextMenu(e, id, name) {
+  e.preventDefault();
+  // Close any existing menus
+  const existing = document.querySelector('.context-menu');
+  if (existing) existing.remove();
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.top = `${e.clientY}px`;
+  menu.style.left = `${e.clientX}px`;
+
+  const videoEl = document.getElementById(id === 'local' ? 'local-video' : `video-${id}`);
+  const currentVol = videoEl ? videoEl.volume : 1;
+
+  menu.innerHTML = `
+    <div class="context-menu-item">
+      <label class="context-menu-label">${name}</label>
+      <div class="volume-control">
+        <svg viewBox="0 0 24 24" width="16" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        <input type="range" class="volume-slider" min="0" max="1" step="0.1" value="${currentVol}">
+      </div>
+    </div>
+  `;
+
+  const slider = menu.querySelector('.volume-slider');
+  slider.oninput = () => {
+    if (videoEl) videoEl.volume = slider.value;
+  };
+
+  document.body.appendChild(menu);
+}
+
+// Close context menu on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.context-menu')) {
+    const existing = document.querySelector('.context-menu');
+    if (existing) existing.remove();
+  }
+});
 
 // Navigation Delegation
 document.addEventListener('click', (e) => {
