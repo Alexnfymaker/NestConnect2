@@ -3,292 +3,310 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NestConnect — Meeting Hub</title>
-  <meta name="description" content="NestConnect — premium video conferencing for guests and friends.">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <title>Nexus RTC | Next-Gen Communication</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <script src="/socket.io/socket.io.js"></script>
   <script defer src="app.js"></script>
 </head>
-<body class="dark-mode">
+<body>
 
-  <main class="app-container">
+  <!-- ── Main App Container ── -->
+  <div class="app-container">
 
-    <!-- ── Login Screen ── -->
-    <section id="login-screen" class="screen active" style="display:flex;flex-direction:column;">
-      <div class="dashboard-wrap">
-        <div class="dashboard-card auth-card">
-          <div class="dashboard-icon-wrap">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 11c0 3.517-2.103 6.543-5.122 7.82L12 21l5.122-2.18C14.103 17.543 12 14.517 12 11z M12 1a5 5 0 0 0-5 5v3h10V6a5 5 0 0 0-5-5z"/></svg>
-          </div>
-          <h1 class="dash-title" id="auth-title">Login to NestConnect</h1>
-          <p class="dash-sub">Access your meetings and friends.</p>
+    <!-- ── Sidebar (Persistent) ── -->
+    <aside class="nexus-sidebar hidden" id="nexus-sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        </div>
+        <h1 class="brand-name">Nexus RTC</h1>
+      </div>
 
-          <div class="input-group">
-            <label class="input-label">Email Address</label>
-            <input type="email" id="login-email" class="form-input" placeholder="you@example.com">
-          </div>
-
-          <div class="input-group">
-            <label class="input-label">Password</label>
-            <input type="password" id="login-password" class="form-input" placeholder="Your secret password">
-          </div>
-
-          <div class="input-group hidden" id="nickname-group">
-            <label class="input-label">Your Nickname</label>
-            <input type="text" id="login-nickname" class="form-input" placeholder="e.g. Alex">
-          </div>
-
-          <button class="btn-host" id="btn-auth-main">Login</button>
-          
-          <div class="auth-toggle">
-            <p id="toggle-text">Don't have an account? <a href="#" id="go-to-register">Register</a></p>
+      <div class="sidebar-user">
+        <div class="user-pill">
+          <div class="user-avatar" id="sidebar-avatar">--</div>
+          <div class="user-meta">
+            <span class="user-name" id="local-nickname-label">User</span>
+            <span class="user-status"><span class="status-dot"></span> Active</span>
           </div>
         </div>
       </div>
-    </section>
 
-    <!-- ── App Layout (Post-Login) ── -->
-    <div id="main-app" class="hidden">
+      <nav class="sidebar-nav">
+        <button class="nav-item active" data-screen="dashboard-screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-screen="history-screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          History
+        </button>
+        <button class="nav-item" data-screen="contacts-screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          Contacts
+        </button>
+        <button class="nav-item" data-screen="settings-screen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="nav-item" id="btn-logout">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
+    </aside>
+
+    <!-- ── Main Content Area ── -->
+    <main class="main-content">
       
-      <!-- ── Top Nav ── -->
-      <header class="app-header">
-        <div class="logo">
-          <svg class="logo-icon" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/>
-          </svg>
-          <span>NestConnect</span>
+      <!-- ── Top Navigation Bar ── -->
+      <nav class="top-bar hidden" id="top-bar">
+        <div class="search-container">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="search-input" placeholder="Search callers, groups or ID...">
         </div>
+        <div class="top-actions">
+          <button class="icon-btn" title="Notifications">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </button>
+          <button class="icon-btn" onclick="openSettings()" title="Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </nav>
 
-        <nav class="top-nav">
-          <a href="#" class="nav-link active" data-screen="dashboard-screen">Dashboard</a>
-          <a href="#" class="nav-link" data-screen="chat-screen">Chat & Friends</a>
-          <a href="#" class="nav-link">Activities</a>
-        </nav>
-
-        <div class="header-right">
-          <div class="my-number-pill">
-            <span class="status-dot"></span>
-            <span>ID: <strong id="my-number">------</strong></span>
+      <!-- ── Login Screen (Auth) ── -->
+      <section id="login-screen" class="screen active">
+        <div class="login-card">
+          <div class="login-logo brand-logo">
+            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
           </div>
-          <button class="icon-btn" id="btn-theme-toggle" title="Toggle Dark Mode">
-            <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-          </button>
-          <button class="icon-btn" id="btn-logout" title="Logout">
-            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3h-2v10h2V3z"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-          </button>
-        </div>
-      </header>
+          <h1 id="auth-title" style="font-size: 24px; margin-bottom: 8px;">Nexus RTC Login</h1>
+          <p style="color: var(--text-2); font-size: 14px; margin-bottom: 32px;">Secure end-to-end communication platform.</p>
 
-      <!-- ── Dashboard Screen ── -->
-      <section id="dashboard-screen" class="screen">
-        <div class="dashboard-wrap explorer-grid">
+          <div style="text-align: left; margin-bottom: 16px;">
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Email Address</label>
+            <input type="email" id="login-email" class="search-input" placeholder="you@domain.com" style="padding-left: 16px; margin-top: 6px;">
+          </div>
+
+          <div style="text-align: left; margin-bottom: 16px;">
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Password</label>
+            <input type="password" id="login-password" class="search-input" placeholder="••••••••" style="padding-left: 16px; margin-top: 6px;">
+          </div>
+
+          <div id="nickname-group" class="hidden" style="text-align: left; margin-bottom: 16px;">
+            <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Display Nickname</label>
+            <input type="text" id="login-nickname" class="search-input" placeholder="e.g. Alex" style="padding-left: 16px; margin-top: 6px;">
+          </div>
+
+          <button id="btn-auth-main" style="width: 100%; height: 50px; background: var(--accent); color: white; font-weight: 700; border-radius: 12px; margin-top: 16px; box-shadow: 0 4px 15px var(--accent-glow);">Login</button>
           
-          <div class="dashboard-card">
-            <div class="dashboard-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-            </div>
-            <h1 class="dash-title">Instant Meeting</h1>
-            <p class="dash-sub">Start a free, secure call now.</p>
-            <button class="btn-host" id="btn-host-meeting">New Meeting</button>
-            <div class="divider"><span>or join code</span></div>
-            <div class="join-row">
-              <input type="text" id="room-code-input" class="form-input" placeholder="Join code">
-              <button class="btn-join" id="btn-join-meeting">Join</button>
-            </div>
+          <div style="margin-top: 24px; font-size: 13px; color: var(--text-2);">
+            <span id="toggle-text">Don't have an account? <a href="#" id="go-to-register" style="color: var(--accent); font-weight: 600;">Register Now</a></span>
           </div>
-
-          <!-- Add Friend Card -->
-          <div class="dashboard-card">
-            <div class="dashboard-icon-wrap">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-            </div>
-            <h1 class="dash-title">Add Friends</h1>
-            <p class="dash-sub">Connect via 6-digit ID</p>
-            <div class="join-row">
-              <input type="text" id="friend-id-input" class="form-input" placeholder="000000" maxlength="6">
-              <button class="btn-join" id="btn-add-friend">Add</button>
-            </div>
-            
-            <div id="pending-requests" class="requests-list">
-              <!-- Pending requests populated via JS -->
-            </div>
-          </div>
-
         </div>
       </section>
 
-      <!-- ── Chat Screen ── -->
-      <section id="chat-screen" class="screen">
-        <div class="chat-container-layout">
-          <aside class="friends-sidebar">
-            <h3 class="sidebar-title">Friends</h3>
-            <div id="friends-list" class="friends-list">
-              <!-- Friends list populated via JS -->
-            </div>
-          </aside>
+      <!-- ── Dashboard Screen ── -->
+      <section id="dashboard-screen" class="screen">
+        <div class="dashboard-grid">
           
-          <div class="messaging-area">
-            <div id="chat-header" class="chat-header hidden">
-              <span id="chatting-with">Select a friend</span>
-              <button class="btn-invite-chat hidden" id="btn-invite-friend">Start Meeting</button>
+          <!-- Dialer Widget -->
+          <div class="card dialer-card">
+            <h2 style="font-size: 18px; margin-bottom: 24px;">New Call</h2>
+            <div class="dialer-display">
+              <div class="display-number" id="dialer-output">--</div>
             </div>
-            <div id="chat-messages" class="chat-messages">
-              <div class="no-chat-selected">Select a friend to start chatting</div>
+
+            <div class="dialer-grid">
+              <button class="dial-btn" data-val="1">1</button>
+              <button class="dial-btn" data-val="2">2 <span>ABC</span></button>
+              <button class="dial-btn" data-val="3">3 <span>DEF</span></button>
+              <button class="dial-btn" data-val="4">4 <span>GHI</span></button>
+              <button class="dial-btn" data-val="5">5 <span>JKL</span></button>
+              <button class="dial-btn" data-val="6">6 <span>MNO</span></button>
+              <button class="dial-btn" data-val="7">7 <span>PQRS</span></button>
+              <button class="dial-btn" data-val="8">8 <span>TUV</span></button>
+              <button class="dial-btn" data-val="9">9 <span>WXYZ</span></button>
+              <button class="dial-btn" data-val="*">*</button>
+              <button class="dial-btn" data-val="0">0 <span>+</span></button>
+              <button class="dial-btn" data-val="#">#</button>
             </div>
-            <div class="chat-input-bar hidden" id="chat-form">
-              <input type="text" id="chat-input" placeholder="Type a message...">
-              <button id="btn-send-chat">Send</button>
+
+            <div class="dialer-actions">
+              <button class="btn-action btn-audio" id="btn-dial-audio">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                Audio Call
+              </button>
+              <button class="btn-action btn-video" id="btn-dial-video">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                Video Call
+              </button>
             </div>
           </div>
+
+          <!-- Quick Actions & Recent -->
+          <div class="dashboard-widgets">
+            <div class="widget-row">
+              <div class="widget widget-blue">
+                <div>
+                  <h3>Instant Meeting</h3>
+                  <p>Generate a one-click room URL for global guests.</p>
+                </div>
+                <button class="btn-widget" id="btn-host-meeting">Create Now</button>
+              </div>
+              <div class="widget">
+                <div>
+                  <h3>Schedule</h3>
+                  <p>Plan your future sessions and calendar events.</p>
+                </div>
+                <button class="btn-widget">Open Calendar</button>
+              </div>
+            </div>
+
+            <div class="card recent-calls">
+              <div class="list-header">
+                <h3>Recent Calls</h3>
+                <button style="color: var(--accent); font-size: 11px; font-weight: 700; text-transform: uppercase;">View All</button>
+              </div>
+              <div id="recent-calls-list" style="display: flex; flex-direction: column;">
+                <p style="color: var(--text-3); font-size: 13px; text-align: center; margin-top: 20px;">No recent call activity found.</p>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
       <!-- ── Room Screen ── -->
       <section id="room-screen" class="screen">
-        <!-- (Keeping original Room Screen Content) -->
-        <div class="room-header">
-          <div class="room-header-left">
-            <p class="session-label">ACTIVE SESSION</p>
-            <h2 class="session-title">Meeting Room</h2>
-          </div>
-          <div class="room-header-right" style="display:flex; align-items:center; gap:12px;">
-            <button class="btn-cancel" onclick="openSettings()" style="padding:6px 12px; height:32px; display:flex; align-items:center; gap:6px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              Settings
-            </button>
-            <div class="room-code-badge">
-              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-              <span id="current-room-id">------</span>
+        <div class="room-layout">
+          <div class="video-section">
+            <div class="video-grid" id="video-grid">
+              <!-- Local Video -->
+              <div class="video-wrapper" id="wrapper-local">
+                <video id="local-video" autoplay playsinline muted></video>
+                <div class="video-label" id="local-label-room">You</div>
+              </div>
+            </div>
+
+            <div class="control-bar">
+              <button class="btn-ctrl" id="btn-mute" title="Toggle Audio">
+                <svg class="icon-mic-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                <svg class="icon-mic-off hidden" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+              </button>
+              <button class="btn-ctrl" id="btn-video" title="Toggle Video">
+                <svg class="icon-vid-on" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                <svg class="icon-vid-off hidden" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+              <button class="btn-ctrl" id="btn-screen-share" title="Share Screen">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              </button>
+              <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1); margin: 0 8px;"></div>
+              <button class="btn-ctrl danger" id="btn-leave" title="End Call">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 3.11 2h3a2 2 0 0 1-2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.1 9.91"/></svg>
+              </button>
             </div>
           </div>
-        </div>
-        <div id="video-grid" class="video-grid">
-          <div class="video-wrapper" id="wrapper-local">
-            <video id="local-video" autoplay playsinline muted></video>
-            <div class="video-label">
-              <span class="label-dot"></span>
-              <span id="local-nickname-label">Me</span>
-              (<span id="local-number-label"></span>)
+
+          <!-- Meeting Sidebar -->
+          <div class="side-panel">
+            <div class="panel-header">
+              <h3 style="font-size: 15px;">Meeting Info</h3>
+              <span class="tag-live">Live</span>
+            </div>
+            <div class="panel-content" id="meeting-sidebar-content">
+              <div style="margin-bottom: 32px;">
+                <label style="font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Participants</label>
+                <div id="participant-list" style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+                  <!-- Dynamically added -->
+                </div>
+              </div>
+
+              <div>
+                <label style="font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">In-Call Messages</label>
+                <div id="room-messages" style="margin-top: 12px; font-size: 13px; color: var(--text-2); min-height: 200px;">
+                  <p style="text-align: center; margin-top: 40px; opacity: 0.5;">No messages yet.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-input-container">
+              <div class="chat-input-wrapper">
+                <input type="text" id="room-chat-input" placeholder="Send a message...">
+                <button class="btn-send" id="btn-send-room-chat">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="controls-bar">
-          <button class="ctrl-btn" id="btn-mute"> <div class="ctrl-icon"><svg class="icon-mic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg><svg class="icon-mic-off hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></div><span>Mute</span></button>
-          <button class="ctrl-btn" id="btn-video"> <div class="ctrl-icon"><svg class="icon-vid-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg><svg class="icon-vid-off hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/><line x1="1" y1="1" x2="23" y2="23"/></svg></div><span>Video</span></button>
-          <button class="ctrl-btn ctrl-btn--share" id="btn-screen-share"> <div class="ctrl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div><span>Share</span></button>
-          <button class="ctrl-btn ctrl-btn--leave" id="btn-leave"> <div class="ctrl-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.13 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 1.13h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 8.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16z"/></svg></div><span>Leave</span></button>
         </div>
       </section>
 
-    </div><!-- End main app wrap -->
-
-    <!-- (Modals) -->
-    <div id="volume-modal" class="modal-overlay hidden">
-      <div class="modal-box">
-        <div class="modal-header"><h3>Participant Volume</h3><p>Adjust volume for: <strong id="volume-target-name">User</strong></p></div>
-        <div class="modal-body"><div class="volume-control-wrap"><input type="range" id="volume-slider" min="0" max="1" step="0.05" value="1" class="volume-slider"><span id="volume-percent">100%</span></div></div>
-        <div class="modal-actions"><button class="btn-cancel" id="btn-close-volume">Close</button></div>
-      </div>
-    </div>
-
-    <div id="zoom-overlay" class="modal-overlay hidden">
-      <div class="zoom-container"><video id="zoom-video" autoplay playsinline muted></video>
-        <div class="zoom-controls"><div class="zoom-label" id="zoom-info-label">User's Stream</div><button class="btn-close-zoom" id="btn-close-zoom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg><span>Close Zoom</span></button></div>
-      </div>
-    </div>
-
-    <div id="incoming-invite-overlay" class="modal-overlay hidden">
-      <div class="modal-box ringing-box">
-        <div class="avatar-pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-        <h3>Incoming Meeting</h3><p><strong id="inviter-number">------</strong> invited you.</p>
-        <div class="invite-actions"><button class="btn-decline-call" id="btn-reject-invite">Cancel</button><button class="btn-accept-call" id="btn-accept-invite">Join</button></div>
-      </div>
-    </div>
-
-    <!-- ── Call Active Floating Pill ── -->
-    <div id="call-active-pill" class="hidden" onclick="returnToCall()">
-      <span class="pill-dot"></span>
-      📞 Call Active — Return
-    </div>
-
-    <!-- ── Audio Elements ── -->
-    <audio id="audio-leave" src="https://image2url.com/r2/default/audio/1774801535700-cb574d52-d50d-4a26-90ea-17da26aa2318.mp3" preload="auto"></audio>
-    <audio id="audio-ring" src="https://image2url.com/r2/default/audio/1774801683234-d2ff66c9-a510-47d0-a6d0-267a4a641329.mp3" preload="auto" loop></audio>
-
-    <div id="toast" class="toast hidden"></div>
-
-    <!-- ── Settings Modal (Camera/Mic) ── -->
-    <div id="settings-modal" class="modal-overlay hidden">
-      <div class="modal-box">
-        <div class="modal-header">
-          <h3>Media Settings</h3>
-          <p>Choose your input devices</p>
+      <!-- ── Contacts Screen ── -->
+      <section id="contacts-screen" class="screen">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+          <div>
+            <h1 style="font-size: 28px;">Contacts</h1>
+            <p style="color: var(--text-2); font-size: 14px;">Manage your trusted connection network.</p>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <input type="text" id="friend-id-input" class="search-input" placeholder="Enter 6-digit ID" style="width: 180px;">
+            <button id="btn-add-friend" style="background: var(--accent); color: white; padding: 0 24px; border-radius: 20px; font-weight: 700; height: 40px;">Add Friend</button>
+          </div>
         </div>
-        <div class="modal-body">
-          <label class="dash-sub" style="display:block; margin-bottom:6px;">Camera</label>
-          <select id="video-source-select" class="form-input" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text); margin-bottom:16px;"></select>
-          
-          <label class="dash-sub" style="display:block; margin-bottom:6px;">Microphone</label>
-          <select id="audio-source-select" class="form-input" style="width:100%; padding:10px; border-radius:8px; background:var(--bg); border:1px solid var(--border); color:var(--text);"></select>
+
+        <div class="contacts-grid" id="friends-list">
+          <!-- Populated by app.js -->
         </div>
-        <div class="modal-actions">
-          <button class="btn-cancel" onclick="closeSettings()">Done</button>
+
+        <div id="pending-requests" style="margin-top: 60px;">
+          <h3 style="font-size: 14px; color: var(--text-3); text-transform: uppercase; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 10px;">Pending Requests</h3>
+          <!-- Populated by app.js -->
         </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ── Global Modals & Overlays ── -->
+  <div id="incoming-invite-overlay" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div class="login-card" style="width: 400px; padding: 40px; animation: authFadeIn 0.5s ease;">
+      <div class="avatar-pulse" style="width: 80px; height: 80px; background: var(--bg-input); border-radius: 50%; margin: 0 auto 24px; display: flex; align-items: center; justify-content: center;">
+        <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+      </div>
+      <h2 style="font-size: 20px; margin-bottom: 8px;">Incoming HD Call</h2>
+      <p style="color: var(--text-2); margin-bottom: 32px;">Meeting invite from <strong id="inviter-number">------</strong></p>
+      
+      <div style="display: flex; gap: 16px; justify-content: center;">
+        <button id="btn-reject-invite" style="flex: 1; height: 50px; background: #2a2b48; border-radius: 12px; font-weight: 700;">Decline</button>
+        <button id="btn-accept-invite" style="flex: 1; height: 50px; background: var(--accent); color: white; border-radius: 12px; font-weight: 700; box-shadow: 0 4px 15px var(--accent-glow);">Accept Call</button>
       </div>
     </div>
+  </div>
 
-    <!-- ── Electron Screen Picker (only active in desktop app) ── -->
-    <div id="screen-picker-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
-      <div style="background:#111; border:1px solid #222; border-radius:16px; padding:28px; width:90%; max-width:780px; max-height:80vh; overflow:auto;">
-        <h2 style="color:#fff; font-family:Inter,sans-serif; font-size:18px; font-weight:700; margin-bottom:6px;">Choose what to share</h2>
-        <p style="color:#6b7280; font-family:Inter,sans-serif; font-size:13px; margin-bottom:20px;">Select a screen or window to share with participants.</p>
-        <div id="screen-picker-grid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:14px; margin-bottom:20px;"></div>
-        <div style="display:flex; justify-content:flex-end; gap:10px;">
-          <button onclick="cancelScreenPick()" style="background:#1a1a1a; color:#9ca3af; border:1px solid #333; border-radius:8px; padding:9px 20px; font-family:Inter,sans-serif; font-size:13px; cursor:pointer;">Cancel</button>
-        </div>
+  <div id="toast" class="hidden" style="position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); background: var(--bg-card); border: 1px solid var(--accent); padding: 12px 24px; border-radius: 30px; font-size: 14px; font-weight: 600; color: white; z-index: 10000; box-shadow: 0 8px 32px rgba(0,0,0,0.5);"></div>
+
+  <!-- Settings Modal (Quick) -->
+  <div id="settings-modal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+    <div class="card" style="width: 440px;">
+      <h2 style="font-size: 18px; margin-bottom: 24px;">Media Settings</h2>
+      <div style="margin-bottom: 20px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Camera Source</label>
+        <select id="video-source-select" class="search-input" style="padding-left: 16px; margin-top: 6px; width: 100%;"></select>
       </div>
+      <div style="margin-bottom: 32px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase;">Microphone Source</label>
+        <select id="audio-source-select" class="search-input" style="padding-left: 16px; margin-top: 6px; width: 100%;"></select>
+      </div>
+      <button onclick="document.getElementById('settings-modal').classList.add('hidden')" style="width: 100%; height: 50px; background: var(--surface); border-radius: 12px; font-weight: 700;">Close Settings</button>
     </div>
+  </div>
 
-    <!-- ── Electron Bridge Script ── -->
-    <script>
-      // Only runs inside the Electron desktop app
-      if (window.electronBridge) {
-        window.electronBridge.onShowScreenPicker(function(sources) {
-          const overlay = document.getElementById('screen-picker-overlay');
-          const grid = document.getElementById('screen-picker-grid');
-          grid.innerHTML = '';
-          sources.forEach(function(src) {
-            const card = document.createElement('div');
-            card.style.cssText = 'background:#1a1a1a; border:2px solid #333; border-radius:10px; padding:10px; cursor:pointer; transition:border-color .15s; display:flex; flex-direction:column; align-items:center; gap:8px;';
-            card.onmouseover = function() { card.style.borderColor = '#1a56db'; };
-            card.onmouseout  = function() { card.style.borderColor = '#333'; };
-            card.onclick = function() {
-              overlay.style.display = 'none';
-              window.electronBridge.selectScreen(src.id);
-            };
-            const img = document.createElement('img');
-            img.src = src.thumbnail;
-            img.style.cssText = 'width:100%; border-radius:6px; aspect-ratio:16/9; object-fit:cover;';
-            const label = document.createElement('span');
-            label.textContent = src.name;
-            label.style.cssText = 'color:#e5e7eb; font-size:11px; font-family:Inter,sans-serif; font-weight:500; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; width:100%;';
-            card.appendChild(img);
-            card.appendChild(label);
-            grid.appendChild(card);
-          });
-          overlay.style.display = 'flex';
-        });
-      }
-      function cancelScreenPick() {
-        document.getElementById('screen-picker-overlay').style.display = 'none';
-        if (window.electronBridge) window.electronBridge.cancelScreenPicker();
-      }
-      function closeSettings() {
-        document.getElementById('settings-modal').classList.add('hidden');
-      }
-    </script>
-
-  </main>
 </body>
 </html>

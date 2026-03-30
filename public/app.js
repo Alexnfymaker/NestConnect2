@@ -4,12 +4,13 @@ const socket = io();
 //  DOM References
 // ═══════════════════════════════════════
 
-// Screens
-const loginScreen   = document.getElementById('login-screen');
-const mainApp       = document.getElementById('main-app');
+// Persistents
+const nexusSidebar   = document.getElementById('nexus-sidebar');
+const topBar         = document.getElementById('top-bar');
 const dashboardScreen = document.getElementById('dashboard-screen');
-const chatScreen    = document.getElementById('chat-screen');
-const roomScreen    = document.getElementById('room-screen');
+const roomScreen      = document.getElementById('room-screen');
+const contactsScreen  = document.getElementById('contacts-screen');
+const loginScreen      = document.getElementById('login-screen');
 
 // Auth UI
 const loginEmailInput = document.getElementById('login-email');
@@ -21,51 +22,35 @@ const authTitle       = document.getElementById('auth-title');
 const goToRegister    = document.getElementById('go-to-register');
 const btnLogout       = document.getElementById('btn-logout');
 
-// Dashboard
-const myNumberEl      = document.getElementById('my-number');
-const btnHostMeeting  = document.getElementById('btn-host-meeting');
-const btnJoinMeeting  = document.getElementById('btn-join-meeting');
-const roomCodeInput   = document.getElementById('room-code-input');
-const friendIdInput   = document.getElementById('friend-id-input');
-const btnAddFriend    = document.getElementById('btn-add-friend');
-const pendingRequestsList = document.getElementById('pending-requests');
+// Sidebar and Header
+const localNicknameLabel = document.getElementById('local-nickname-label');
+const sidebarAvatar      = document.getElementById('sidebar-avatar');
+const sidebarNavItems    = document.querySelectorAll('.nav-item[data-screen]');
 
-// Chat
-const friendsListContainer = document.getElementById('friends-list');
-const chatMessagesContainer = document.getElementById('chat-messages');
-const chatHeader       = document.getElementById('chat-header');
-const chattingWithLabel = document.getElementById('chatting-with');
-const btnInviteFriend  = document.getElementById('btn-invite-friend');
-const chatForm         = document.getElementById('chat-form');
-const chatInput        = document.getElementById('chat-input');
-const btnSendChat      = document.getElementById('btn-send-chat');
+// Dialer
+const dialerOutput      = document.getElementById('dialer-output');
+const dialBtns         = document.querySelectorAll('.dial-btn');
+const btnDialAudio     = document.getElementById('btn-dial-audio');
+const btnDialVideo     = document.getElementById('btn-dial-video');
+const btnHostMeeting  = document.getElementById('btn-host-meeting');
 
 // Room
-const currentRoomIdEl  = document.getElementById('current-room-id');
 const videoGrid        = document.getElementById('video-grid');
 const localVideo       = document.getElementById('local-video');
-const localNumberLabel = document.getElementById('local-number-label');
-const localNicknameLabel = document.getElementById('local-nickname-label');
 const btnMute          = document.getElementById('btn-mute');
 const btnVideo         = document.getElementById('btn-video');
 const btnScreenShare   = document.getElementById('btn-screen-share');
 const btnLeave         = document.getElementById('btn-leave');
+const pList            = document.getElementById('participant-list');
+const roomMessages     = document.getElementById('room-messages');
+const roomChatInput    = document.getElementById('room-chat-input');
+const btnSendRoomChat  = document.getElementById('btn-send-room-chat');
 
-// Toast
-const toastEl = document.getElementById('toast');
-
-// Zoom Modal
-const zoomOverlay  = document.getElementById('zoom-overlay');
-const zoomVideo    = document.getElementById('zoom-video');
-const zoomInfoLabel = document.getElementById('zoom-info-label');
-const btnCloseZoom = document.getElementById('btn-close-zoom');
-
-// Volume Modal
-const volumeModal      = document.getElementById('volume-modal');
-const volumeSlider     = document.getElementById('volume-slider');
-const volumePercent    = document.getElementById('volume-percent');
-const volumeTargetName = document.getElementById('volume-target-name');
-const btnCloseVolume   = document.getElementById('btn-close-volume');
+// Friends
+const friendIdInput    = document.getElementById('friend-id-input');
+const btnAddFriend     = document.getElementById('btn-add-friend');
+const friendsListCont  = document.getElementById('friends-list');
+const pendingRequestsList = document.getElementById('pending-requests');
 
 // Incoming Invite
 const incomingInviteOverlay = document.getElementById('incoming-invite-overlay');
@@ -73,33 +58,22 @@ const inviterNumberEl       = document.getElementById('inviter-number');
 const btnRejectInvite       = document.getElementById('btn-reject-invite');
 const btnAcceptInvite       = document.getElementById('btn-accept-invite');
 
-// Call Active Pill
-const callActivePill = document.getElementById('call-active-pill');
-
-// Sounds
-const audioLeave = document.getElementById('audio-leave');
-const audioRing  = document.getElementById('audio-ring');
-
-// Settings Modal
+// Settings
 const settingsModal    = document.getElementById('settings-modal');
 const videoSourceSelect = document.getElementById('video-source-select');
 const audioSourceSelect = document.getElementById('audio-source-select');
+
+// Utilities
+const toastEl = document.getElementById('toast');
 
 // ═══════════════════════════════════════
 //  State
 // ═══════════════════════════════════════
 let currentUser = null;
 let isRegisterMode = false;
-let activeChatFriendId = null;
-const chatHistory = {}; // friendId -> [{type,msg}]
-const onlineFriends = new Set(); // track who is online
-
 let myNumber = '';
 let currentRoom = null;
-let currentInviteRoom = null;
-let currentInviter = null;
-let currentlyZoomedWrapper = null;
-let activeVolumePeerId = null;
+let dialNumber = '';
 
 let localStream = null;
 let screenStream = null;
@@ -107,10 +81,10 @@ let isAudioMuted = false;
 let isVideoMuted = false;
 let isSharingScreen = false;
 
-let audioContext = null;
-const speechIntervals = {};
-const volumeNodes = {};
 const peers = {};
+const volumeNodes = {};
+const speechIntervals = {};
+let audioContext = null;
 
 const iceServers = {
   iceServers: [
@@ -120,909 +94,399 @@ const iceServers = {
 };
 
 // ═══════════════════════════════════════
-//  Utilities
+//  Core App Logic
 // ═══════════════════════════════════════
+
 function showToast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.remove('hidden');
-  toastEl.classList.add('show');
-  setTimeout(() => {
-    toastEl.classList.remove('show');
-    setTimeout(() => toastEl.classList.add('hidden'), 300);
-  }, 4000);
+  setTimeout(() => toastEl.classList.add('hidden'), 3500);
 }
 
-function showScreen(screen) {
+function switchScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  screen.classList.add('active');
-  // Show the pill whenever we navigate away from the room screen while in a call
-  if (currentRoom && screen.id !== 'room-screen') {
-    callActivePill.classList.remove('hidden');
-  } else {
-    callActivePill.classList.add('hidden');
-  }
+  sidebarNavItems.forEach(item => {
+    item.classList.toggle('active', item.dataset.screen === screenId);
+  });
+  const screen = document.getElementById(screenId);
+  if (screen) screen.classList.add('active');
 }
 
-function showAppScreen(screen) {
-  showScreen(screen);
-  document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.toggle('active', link.dataset.screen === screen.id);
-  });
-}
+// Dialpad logic
+dialBtns.forEach(btn => {
+  btn.onclick = () => {
+    if (dialNumber.length < 6) {
+      dialNumber += btn.dataset.val;
+      dialerOutput.textContent = dialNumber;
+    }
+  };
+});
+dialerOutput.onclick = () => { dialNumber = ''; dialerOutput.textContent = '--'; };
 
 // ═══════════════════════════════════════
-//  Auth
+//  Auth Integration
 // ═══════════════════════════════════════
 async function checkMe() {
   try {
     const res = await fetch('/api/me');
-    if (res.ok) {
-      onLoggedIn(await res.json());
-    } else {
-      mainApp.classList.add('hidden');
-      mainApp.style.display = 'none';
-      loginScreen.style.display = 'flex';
-      showScreen(loginScreen);
-    }
-  } catch (e) {
-    mainApp.classList.add('hidden');
-    mainApp.style.display = 'none';
-    loginScreen.style.display = 'flex';
-    showScreen(loginScreen);
-  }
+    if (res.ok) onLoggedIn(await res.json());
+    else { loginScreen.style.display = 'flex'; switchScreen('login-screen'); }
+  } catch (e) { switchScreen('login-screen'); }
 }
 
 async function handleAuth() {
   const email = loginEmailInput.value.trim();
   const password = loginPassInput.value.trim();
   const nickname = loginNickInput.value.trim();
-  if (!email || !password) return showToast('Fill in email & password');
-  if (isRegisterMode && !nickname) return showToast('Pick a nickname');
-
+  if (!email || !password) return showToast('Email and Password required');
   const endpoint = isRegisterMode ? '/api/register' : '/api/login';
   const body = isRegisterMode ? { email, password, nickname } : { email, password };
-
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
-    const data = await res.json();
     if (res.ok) {
-      if (isRegisterMode) {
-        showToast('Account created! Please login.');
-        toggleAuthMode(false);
-      } else {
-        checkMe();
-      }
+      if (isRegisterMode) { showToast('Account created! Logging in...'); isRegisterMode = false; handleAuth(); }
+      else checkMe();
     } else {
-      showToast(data.error || 'Authentication failed');
+      const d = await res.json();
+      showToast(d.error || 'Authentication failed');
     }
-  } catch (e) {
-    showToast('Server error');
-  }
+  } catch (e) { showToast('Server connection error'); }
 }
 
 function onLoggedIn(user) {
   currentUser = user;
   myNumber = user.id;
-  myNumberEl.textContent = user.id;
-  localNumberLabel.textContent = user.id;
+  
   localNicknameLabel.textContent = user.nickname;
+  sidebarAvatar.textContent = user.nickname.substring(0, 2).toUpperCase();
+  
+  // Update sidebar branding etc
+  nexusSidebar.classList.remove('hidden');
+  topBar.classList.remove('hidden');
+  loginScreen.style.display = 'none';
 
   socket.emit('identify', { id: user.id });
-
-  // Explicitly hide login and show main app
-  loginScreen.classList.remove('active');
-  loginScreen.style.display = 'none'; // Force hide
-  mainApp.classList.remove('hidden');
-  mainApp.style.display = 'flex'; // Force show as flex
-  
-  showAppScreen(dashboardScreen);
-  // Directly populate UI from the already-fetched user object, then refresh
-  renderFriendsFromUser(user);
-  // Fetch initial online status then refresh UI
-  fetch('/api/online-friends').then(r => r.json()).then(data => {
-    if (data.onlineFriends) {
-      data.onlineFriends.forEach(fid => onlineFriends.add(fid));
-      renderFriendsFromUser(currentUser);
-    }
-  }).catch(() => {});
-  // Also do a full refresh to make sure everything is up to date
-  updateFriendsUI();
-}
-
-// ── Real-time online presence ──
-socket.on('friend-online', ({ id }) => {
-  onlineFriends.add(id);
-  // Update just this friend's item if visible, else do a full re-render
-  const item = document.getElementById(`friend-item-${id}`);
-  if (item) {
-    const avatar = item.querySelector('.friend-avatar');
-    const status = item.querySelector('.friend-status');
-    if (avatar && !avatar.querySelector('.online-dot')) {
-      const dot = document.createElement('span');
-      dot.className = 'online-dot';
-      avatar.appendChild(dot);
-    }
-    if (status) { status.textContent = '● Online'; status.className = 'friend-status online'; }
-  }
-});
-
-socket.on('friend-offline', ({ id }) => {
-  onlineFriends.delete(id);
-  const item = document.getElementById(`friend-item-${id}`);
-  if (item) {
-    const dot = item.querySelector('.online-dot');
-    if (dot) dot.remove();
-    const status = item.querySelector('.friend-status');
-    if (status) { status.textContent = 'Offline'; status.className = 'friend-status'; }
-  }
-});
-
-function renderFriendsFromUser(user) {
-  // Pending requests on dashboard
-  pendingRequestsList.innerHTML = '';
-  if (!user.friendRequests || user.friendRequests.length === 0) {
-    pendingRequestsList.innerHTML = '<p class="dash-sub" style="margin-top:4px">No pending requests</p>';
-  } else {
-    user.friendRequests.forEach(rid => {
-      const div = document.createElement('div');
-      div.className = 'request-item';
-      div.innerHTML = `<span>ID: <strong>${rid}</strong></span><button class="btn-accept-small">Accept</button>`;
-      div.querySelector('button').onclick = () => acceptFriend(rid);
-      pendingRequestsList.appendChild(div);
-    });
-  }
-
-  // Friends list in chat sidebar
-  friendsListContainer.innerHTML = '';
-  if (!user.friends || user.friends.length === 0) {
-    friendsListContainer.innerHTML = '<p class="dash-sub" style="padding:20px">No friends yet — add one via ID!</p>';
-  } else {
-    user.friends.forEach(fid => {
-      const isOnline = onlineFriends.has(fid);
-      const div = document.createElement('div');
-      div.className = `friend-item ${activeChatFriendId === fid ? 'active' : ''}`;
-      div.id = `friend-item-${fid}`;
-      const initials = fid.substring(0, 2);
-      div.innerHTML = `
-        <div class="friend-avatar">${initials}${isOnline ? '<span class="online-dot"></span>' : ''}</div>
-        <div class="friend-info">
-          <span class="friend-name">Friend #${fid}</span>
-          <span class="friend-status ${isOnline ? 'online' : ''}">${isOnline ? '● Online' : 'Offline'}</span>
-        </div>`;
-      div.onclick = () => selectChat(fid);
-      friendsListContainer.appendChild(div);
-    });
-  }
+  switchScreen('dashboard-screen');
+  refreshFriendsUI();
 }
 
 function toggleAuthMode(reg) {
   isRegisterMode = reg;
-  authTitle.textContent = reg ? 'Create Account' : 'Login to NestConnect';
+  authTitle.textContent = reg ? 'Create Nexus Account' : 'Nexus RTC Login';
   btnAuthMain.textContent = reg ? 'Register' : 'Login';
   nicknameGroup.classList.toggle('hidden', !reg);
-  document.getElementById('toggle-text').innerHTML = reg
-    ? 'Already have an account? <a href="#" id="go-to-register">Login</a>'
-    : 'Don\'t have an account? <a href="#" id="go-to-register">Register</a>';
-  document.getElementById('go-to-register').onclick = (e) => {
-    e.preventDefault();
-    toggleAuthMode(!isRegisterMode);
-  };
+  document.getElementById('toggle-text').innerHTML = reg 
+    ? 'Already have an account? <a href="#" id="go-to-register" style="color:var(--accent);font-weight:600;">Login</a>'
+    : 'Don\'t have an account? <a href="#" id="go-to-register" style="color:var(--accent);font-weight:600;">Register Now</a>';
+  document.getElementById('go-to-register').onclick = (e) => { e.preventDefault(); toggleAuthMode(!isRegisterMode); };
 }
 
-btnAuthMain.addEventListener('click', handleAuth);
-// Allow Enter key to submit auth form
-loginPassInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
-loginEmailInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleAuth(); });
-
-goToRegister.addEventListener('click', e => { e.preventDefault(); toggleAuthMode(!isRegisterMode); });
-btnLogout.addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); location.reload(); });
+btnAuthMain.onclick = handleAuth;
+goToRegister.onclick = (e) => { e.preventDefault(); toggleAuthMode(!isRegisterMode); };
+btnLogout.onclick = async () => { await fetch('/api/logout', { method: 'POST' }); location.reload(); };
 
 // ═══════════════════════════════════════
-//  Navigation
+//  Friends & Contacts
 // ═══════════════════════════════════════
-// Return to active call from anywhere (called via onclick on the pill)
-function returnToCall() {
-  if (currentRoom) {
-    showAppScreen(roomScreen);
-  }
-}
-window.returnToCall = returnToCall;
-
-document.querySelectorAll('.nav-link').forEach(link => {
-  link.onclick = (e) => {
-    e.preventDefault();
-    const targetId = e.currentTarget.dataset.screen;
-    if (targetId) {
-      showAppScreen(document.getElementById(targetId));
-      if (targetId === 'chat-screen') updateFriendsUI();
-    }
-  };
-});
-
-// ═══════════════════════════════════════
-//  Friends & Chat
-// ═══════════════════════════════════════
-async function updateFriendsUI() {
+async function refreshFriendsUI() {
   try {
     const res = await fetch('/api/me');
     if (!res.ok) return;
     const user = await res.json();
     currentUser = user;
-    renderFriendsFromUser(user);
-  } catch (e) {
-    console.error('Failed to update friends UI', e);
-  }
+
+    // Render contacts to grid
+    friendsListCont.innerHTML = '';
+    if (!user.friends || user.friends.length === 0) {
+      friendsListCont.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-3); padding: 40px;">No contacts added yet. Use the 6-digit ID to find friends.</div>`;
+    } else {
+      user.friends.forEach(fid => {
+        const initials = fid.substring(0, 2);
+        const card = document.createElement('div');
+        card.className = 'contact-card';
+        card.innerHTML = `
+          <div class="contact-avatar">${initials}</div>
+          <h3 style="font-size: 16px; margin-bottom: 4px;">Friend #${fid}</h3>
+          <p style="font-size: 12px; color: var(--text-3); margin-bottom: 20px;">Private Contact</p>
+          <div style="display: flex; gap: 8px;">
+            <button class="icon-btn" style="flex:1" onclick="dialNumberFromContact('${fid}', 'audio')">
+              <svg viewBox="0 0 24 24" width="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67z"/></svg>
+            </button>
+            <button class="icon-btn" style="flex:1" onclick="dialNumberFromContact('${fid}', 'video')">
+              <svg viewBox="0 0 24 24" width="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+            </button>
+          </div>
+        `;
+        friendsListCont.appendChild(card);
+      });
+    }
+
+    // Pending requests
+    pendingRequestsList.innerHTML = '';
+    if (user.friendRequests && user.friendRequests.length > 0) {
+      user.friendRequests.forEach(rid => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); padding:16px; border-radius:12px; margin-bottom:8px; border:1px solid var(--border);';
+        item.innerHTML = `<span>Request from ID: <strong>${rid}</strong></span> <button onclick="acceptFriend('${rid}')" style="background:var(--success); color:white; padding:8px 16px; border-radius:8px; font-weight:700;">Accept</button>`;
+        pendingRequestsList.appendChild(item);
+      });
+    } else {
+      pendingRequestsList.innerHTML = `<p style="color:var(--text-3); font-size:13px;">No new requests.</p>`;
+    }
+  } catch (e) {}
 }
 
 async function addFriend() {
   const targetId = friendIdInput.value.trim();
-  if (targetId.length !== 6) return showToast('Enter a valid 6-digit ID');
-  if (targetId === myNumber) return showToast('You can\'t add yourself');
-  try {
-    const res = await fetch('/api/friends/request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetId })
-    });
-    const d = await res.json();
-    if (res.ok) { showToast('Friend request sent!'); friendIdInput.value = ''; }
-    else showToast(d.error || 'Failed to send request');
-  } catch (e) { showToast('Server error'); }
+  if (targetId.length !== 6) return showToast('Invalid ID');
+  const res = await fetch('/api/friends/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetId })
+  });
+  if (res.ok) { showToast('Request sent!'); friendIdInput.value = ''; }
+  else { const d = await res.json(); showToast(d.error || 'Failed'); }
 }
 
 async function acceptFriend(senderId) {
-  try {
-    const res = await fetch('/api/friends/accept', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senderId })
-    });
-    if (res.ok) { showToast('Friend accepted!'); updateFriendsUI(); }
-  } catch (e) { showToast('Server error'); }
+  const res = await fetch('/api/friends/accept', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ senderId })
+  });
+  if (res.ok) { showToast('Friend Accepted!'); refreshFriendsUI(); }
 }
 
 btnAddFriend.onclick = addFriend;
-
-function selectChat(fid) {
-  activeChatFriendId = fid;
-  updateFriendsUI();
-  chatHeader.classList.remove('hidden');
-  chatForm.classList.remove('hidden');
-  btnInviteFriend.classList.remove('hidden');
-  chattingWithLabel.textContent = `Friend #${fid}`;
-
-  // Restore chat history
-  chatMessagesContainer.innerHTML = '';
-  const history = chatHistory[fid] || [];
-  if (history.length === 0) {
-    chatMessagesContainer.innerHTML = '<div class="no-chat-selected">No messages yet — say hi!</div>';
-  } else {
-    history.forEach(h => addChatBubble(h.type, h.msg, false));
-  }
-}
-
-function addChatBubble(type, msg, save = true) {
-  // Remove the placeholder if present
-  const placeholder = chatMessagesContainer.querySelector('.no-chat-selected');
-  if (placeholder) placeholder.remove();
-
-  const div = document.createElement('div');
-  div.className = `chat-bubble ${type}`;
-  div.textContent = msg;
-  chatMessagesContainer.appendChild(div);
-  chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
-
-  if (save && activeChatFriendId) {
-    if (!chatHistory[activeChatFriendId]) chatHistory[activeChatFriendId] = [];
-    chatHistory[activeChatFriendId].push({ type, msg });
-  }
-}
-
-btnSendChat.onclick = sendChatMessage;
-chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMessage(); });
-
-function sendChatMessage() {
-  const msg = chatInput.value.trim();
-  if (!msg || !activeChatFriendId) return;
-  socket.emit('send-chat-msg', { targetId: activeChatFriendId, message: msg, senderNickname: currentUser.nickname });
-  addChatBubble('local', msg);
-  chatInput.value = '';
-}
-
-socket.on('receive-chat-msg', ({ senderId, senderNickname, message }) => {
-  // Save to history
-  if (!chatHistory[senderId]) chatHistory[senderId] = [];
-  chatHistory[senderId].push({ type: 'remote', msg: message });
-
-  if (activeChatFriendId === senderId) {
-    addChatBubble('remote', message, false); // already saved above
-  } else {
-    showToast(`${senderNickname}: ${message}`);
-  }
-});
+window.dialNumberFromContact = (id, type) => {
+  dialNumber = id;
+  dialerOutput.textContent = id;
+  if (type === 'audio') btnDialAudio.click();
+  else btnDialVideo.click();
+};
 
 // ═══════════════════════════════════════
-//  Media
+//  Meeting & Room
 // ═══════════════════════════════════════
-function createDummyVideoTrack() {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 640; canvas.height = 480;
-    const ctx = canvas.getContext('2d');
-    const drawInterval = setInterval(() => {
-      ctx.fillStyle = '#111111';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#ffffff'; ctx.font = '30px Arial'; ctx.textAlign = 'center';
-      ctx.fillText('Camera Off', canvas.width / 2, canvas.height / 2);
-    }, 100);
-    const stream = canvas.captureStream ? canvas.captureStream(10) : canvas.mozCaptureStream(10);
-    const track = stream.getVideoTracks()[0];
-    const originalStop = track.stop.bind(track);
-    track.stop = () => { clearInterval(drawInterval); originalStop(); };
-    return track;
-  } catch (e) { return null; }
-}
-
-// ── Camera/Mic selection ──
-async function populateDevices() {
-  try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    videoSourceSelect.innerHTML = '';
-    audioSourceSelect.innerHTML = '';
-    
-    devices.forEach(device => {
-      const option = document.createElement('option');
-      option.value = device.deviceId;
-      if (device.kind === 'videoinput') {
-        option.text = device.label || `Camera ${videoSourceSelect.length + 1}`;
-        videoSourceSelect.appendChild(option);
-      } else if (device.kind === 'audioinput') {
-        option.text = device.label || `Microphone ${audioSourceSelect.length + 1}`;
-        audioSourceSelect.appendChild(option);
-      }
-    });
-  } catch (e) { console.error('Error enumerating devices', e); }
-}
-
 async function getMedia() {
   if (localStream) return true;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    showToast('Browser does not support media. Starting with dummy video...');
-    const dummy = createDummyVideoTrack();
-    localStream = new MediaStream([dummy]);
-    localVideo.srcObject = localStream;
-    return true; 
-  }
-
-  if (videoSourceSelect.options.length === 0) await populateDevices();
-  
-  const videoId = videoSourceSelect.value;
-  const audioId = audioSourceSelect.value;
-  
-  const constraints = {
-    audio: audioId ? { deviceId: { ideal: audioId } } : true,
-    video: videoId ? { deviceId: { ideal: videoId }, width: { ideal: 1280 }, height: { ideal: 720 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }
-  };
-
   try {
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const v = videoSourceSelect.value;
+    const a = audioSourceSelect.value;
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: v ? { deviceId: { ideal: v } } : true,
+      audio: a ? { deviceId: { ideal: a } } : true
+    });
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    console.warn('Selected media failed, trying fallback...', e);
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      localVideo.srcObject = localStream;
-      monitorSpeech(localStream, 'wrapper-local', 'local');
-      return true;
-    } catch (err2) {
-      console.error('Final fallback failed. Starting with dummy track.', err2);
-      
-      const dummy = createDummyVideoTrack();
-      localStream = new MediaStream();
-      if (dummy) localStream.addTrack(dummy);
-      // Try to get audio only as a last resort
-      try {
-        const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true });
-        if (audioOnly.getAudioTracks().length) localStream.addTrack(audioOnly.getAudioTracks()[0]);
-      } catch(e3) {}
-      
-      localVideo.srcObject = localStream;
-      monitorSpeech(localStream, 'wrapper-local', 'local');
-      return true; // Return true so the meeting STILL starts!
-    }
+    showToast('Media access denied. Using fallback.');
+    return false;
   }
 }
 
-// Re-fetch media when selection changes
-videoSourceSelect.onchange = async () => {
-  if (localStream) {
-    localStream.getTracks().forEach(t => t.stop());
-    localStream = null;
-    await getMedia();
-    for (const peer of Object.values(peers)) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender && videoTrack) sender.replaceTrack(videoTrack).catch(() => {});
-    }
-  }
-};
-audioSourceSelect.onchange = async () => {
-  if (localStream) {
-    const audioTrack = localStream.getAudioTracks()[0];
-    for (const peer of Object.values(peers)) {
-      const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-      if (sender && audioTrack) sender.replaceTrack(audioTrack).catch(() => {});
-    }
-  }
-};
-
-function openSettings() {
-  populateDevices();
-  settingsModal.classList.remove('hidden');
-}
-
-function stopMedia() {
-  if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
-  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
-  localVideo.srcObject = null;
-}
-
-// ═══════════════════════════════════════
-//  Audio/Video Toggles
-// ═══════════════════════════════════════
-function toggleAudio(forceMute = null) {
-  if (!localStream) return;
-  isAudioMuted = forceMute !== null ? forceMute : !isAudioMuted;
-  const audioTrack = localStream.getAudioTracks()[0];
-  if (audioTrack) audioTrack.enabled = !isAudioMuted;
-  const iconOn = btnMute.querySelector('.icon-mic-on');
-  const iconOff = btnMute.querySelector('.icon-mic-off');
-  if (isAudioMuted) { iconOn.classList.add('hidden'); iconOff.classList.remove('hidden'); btnMute.classList.add('disabled'); }
-  else { iconOn.classList.remove('hidden'); iconOff.classList.add('hidden'); btnMute.classList.remove('disabled'); }
-}
-
-function toggleVideo(forceMute = null) {
-  if (!localStream) return;
-  if (isSharingScreen) { showToast('Cannot toggle camera while sharing screen'); return; }
-  isVideoMuted = forceMute !== null ? forceMute : !isVideoMuted;
-  const videoTrack = localStream.getVideoTracks()[0];
-  if (videoTrack) videoTrack.enabled = !isVideoMuted;
-  const iconOn = btnVideo.querySelector('.icon-vid-on');
-  const iconOff = btnVideo.querySelector('.icon-vid-off');
-  if (isVideoMuted) { iconOn.classList.add('hidden'); iconOff.classList.remove('hidden'); btnVideo.classList.add('disabled'); }
-  else { iconOn.classList.remove('hidden'); iconOff.classList.add('hidden'); btnVideo.classList.remove('disabled'); }
-}
-
-btnMute.addEventListener('click', () => toggleAudio());
-btnVideo.addEventListener('click', () => toggleVideo());
-
-// ═══════════════════════════════════════
-//  Screen Sharing
-// ═══════════════════════════════════════
-async function startScreenShare() {
-  try {
-    if (window.electronBridge) {
-      // In Electron, we use the bridge to show our professional picker
-      const sourceId = await new Promise((resolve) => {
-        window.electronBridge.onShowScreenPicker(() => {});
-        const originalSelect = window.electronBridge.selectScreen;
-        window.electronBridge.selectScreen = (id) => {
-          originalSelect(id);
-          resolve(id);
-        };
-        const originalCancel = window.electronBridge.cancelScreenPicker;
-        window.electronBridge.cancelScreenPicker = () => {
-          originalCancel();
-          resolve(null);
-        };
-      });
-
-      if (!sourceId) return;
-
-      screenStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          mandatory: {
-            chromeMediaSource: 'desktop',
-            chromeMediaSourceId: sourceId
-          }
-        }
-      });
-    } else {
-      // Standard browser share
-      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-    }
-
-    isSharingScreen = true;
-    const newVideoTrack = screenStream.getVideoTracks()[0];
-    for (const [targetSocketId, peer] of Object.entries(peers)) {
-      const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-      if (sender) {
-        try { await sender.replaceTrack(newVideoTrack); }
-        catch (err) {
-          peer.pc.removeTrack(sender);
-          peer.pc.addTrack(newVideoTrack, localStream);
-          const offer = await peer.pc.createOffer();
-          await peer.pc.setLocalDescription(offer);
-          socket.emit('offer', { targetSocketId, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
-        }
-      }
-    }
-    localVideo.srcObject = screenStream;
-    document.getElementById('wrapper-local').classList.add('sharing');
-    newVideoTrack.onended = stopScreenShare;
-  } catch (e) {
-    console.error('Screen sharing error:', e);
-    if (e.name !== 'NotAllowedError') showToast('Screen sharing failed');
-  }
-}
-
-async function stopScreenShare() {
-  if (!isSharingScreen) return;
-  isSharingScreen = false;
-  const originalVideoTrack = localStream.getVideoTracks()[0];
-  for (const [targetSocketId, peer] of Object.entries(peers)) {
-    const sender = peer.pc.getSenders().find(s => s.track && s.track.kind === 'video');
-    if (sender && originalVideoTrack) {
-      try { await sender.replaceTrack(originalVideoTrack); }
-      catch (err) { console.warn('replaceTrack fail on stop share', err); }
-    }
-  }
-  localVideo.srcObject = localStream;
-  document.getElementById('wrapper-local').classList.remove('sharing');
-  if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
-}
-
-btnScreenShare.addEventListener('click', () => isSharingScreen ? stopScreenShare() : startScreenShare());
-
-// ═══════════════════════════════════════
-//  Speech Monitoring (GainNode per peer)
-// ═══════════════════════════════════════
-function monitorSpeech(stream, wrapperId, peerId = 'local') {
+function monitorSpeech(stream, wrapperId, peerId) {
   if (!stream.getAudioTracks().length) return;
-  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  if (audioContext.state === 'suspended') audioContext.resume();
-  if (speechIntervals[peerId]) clearInterval(speechIntervals[peerId]);
-
-  try {
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.5;
-    const source = audioContext.createMediaStreamSource(stream);
-
-    if (peerId !== 'local') {
-      let gainNode = volumeNodes[peerId];
-      if (!gainNode) {
-        gainNode = audioContext.createGain();
-        gainNode.gain.value = 1.0;
-        volumeNodes[peerId] = gainNode;
-      }
-      source.connect(gainNode);
-      gainNode.connect(analyser);
-      // Removed: analyser.connect(audioContext.destination); 
-      // We want to hear the NATIVE video element audio, NOT the analyzed stream.
-      // Removed: videoEl.muted = true;
-    } else {
-      source.connect(analyser);
-    }
-
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    speechIntervals[peerId] = setInterval(() => {
-      const wrapper = document.getElementById(wrapperId);
-      if (!wrapper) { clearInterval(speechIntervals[peerId]); return; }
-      analyser.getByteFrequencyData(dataArray);
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-      const average = sum / dataArray.length;
-      if (average > 10) wrapper.classList.add('is-speaking');
-      else wrapper.classList.remove('is-speaking');
-    }, 150);
-  } catch (err) { console.error('Speech monitor error:', err); }
+  if (!audioContext) audioContext = new AudioContext();
+  const analyser = audioContext.createAnalyser();
+  const source = audioContext.createMediaStreamSource(stream);
+  source.connect(analyser);
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  speechIntervals[peerId] = setInterval(() => {
+    const w = document.getElementById(wrapperId);
+    if (!w) return clearInterval(speechIntervals[peerId]);
+    analyser.getByteFrequencyData(data);
+    let avg = data.reduce((a, b) => a + b) / data.length;
+    w.classList.toggle('is-speaking', avg > 15);
+  }, 100);
 }
 
-// ═══════════════════════════════════════
-//  WebRTC Mesh
-// ═══════════════════════════════════════
-function createPeerConnection(targetSocketId, targetNumber) {
-  const pc = new RTCPeerConnection(iceServers);
-  const pendingIceCandidates = [];
+btnHostMeeting.onclick = () => {
+  socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
+};
 
-  if (localStream) {
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) pc.addTrack(audioTrack, localStream);
-    const videoTrack = isSharingScreen && screenStream ? screenStream.getVideoTracks()[0] : localStream.getVideoTracks()[0];
-    if (videoTrack) pc.addTrack(videoTrack, localStream);
-  }
-
-  pc.onicecandidate = (event) => {
-    if (event.candidate) socket.emit('ice-candidate', { targetSocketId, candidate: event.candidate });
-  };
-
-  pc.ontrack = (event) => {
-    let videoEl = document.getElementById(`video-${targetSocketId}`);
-    if (!videoEl) {
-      addVideoStream(targetSocketId, targetNumber);
-      videoEl = document.getElementById(`video-${targetSocketId}`);
-    }
-    videoEl.srcObject = event.streams[0];
-    monitorSpeech(event.streams[0], `wrapper-${targetSocketId}`, targetSocketId);
-  };
-
-  peers[targetSocketId] = { pc, pendingIceCandidates, targetNumber };
-  return pc;
-}
-
-function destroyPeerConnection(targetSocketId) {
-  if (peers[targetSocketId]) { peers[targetSocketId].pc.close(); delete peers[targetSocketId]; }
-  if (speechIntervals[targetSocketId]) { clearInterval(speechIntervals[targetSocketId]); delete speechIntervals[targetSocketId]; }
-  delete volumeNodes[targetSocketId];
-  const wrapper = document.getElementById(`wrapper-${targetSocketId}`);
-  if (wrapper) wrapper.remove();
-}
-
-function addVideoStream(socketId, number, nickname = 'User') {
-  if (document.getElementById(`wrapper-${socketId}`)) return;
-  const wrapper = document.createElement('div');
-  wrapper.className = 'video-wrapper glass-panel';
-  wrapper.id = `wrapper-${socketId}`;
-  wrapper.innerHTML = `
-    <video id="video-${socketId}" autoplay playsinline></video>
-    <div class="video-label">${nickname} (${number})</div>
-  `;
-
-  // Left click -> zoom modal
-  wrapper.addEventListener('click', () => openZoomModal(wrapper, `${nickname} (${number})`));
-
-  // Right click -> volume control
-  wrapper.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (socketId === 'local') return;
-    activeVolumePeerId = socketId;
-    volumeTargetName.textContent = `${nickname} (${number})`;
-    const currentVol = volumeNodes[socketId] ? volumeNodes[socketId].gain.value : 1.0;
-    volumeSlider.value = currentVol;
-    volumePercent.textContent = Math.round(currentVol * 100) + '%';
-    volumeModal.classList.remove('hidden');
+btnDialVideo.onclick = btnDialAudio.onclick = () => {
+  if (dialNumber.length !== 6) return showToast('Enter 6-digit target ID');
+  const roomId = 'room_' + Math.random().toString(36).substring(2, 9);
+  socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
+  socket.once('room-created', ({ roomId }) => {
+    socket.emit('invite-friend', { targetId: dialNumber, senderId: myNumber, senderNickname: currentUser.nickname, roomId });
   });
+};
 
-  videoGrid.appendChild(wrapper);
-}
-
-// ═══════════════════════════════════════
-//  Zoom Modal
-// ═══════════════════════════════════════
-function openZoomModal(wrapper, infoText) {
-  const originalVideo = wrapper.querySelector('video');
-  if (!originalVideo || !originalVideo.srcObject) return;
-  zoomVideo.srcObject = originalVideo.srcObject;
-  zoomInfoLabel.textContent = infoText;
-  if (wrapper.id === 'wrapper-local' && !isSharingScreen) zoomVideo.style.transform = 'scaleX(-1)';
-  else zoomVideo.style.transform = 'none';
-  zoomOverlay.classList.remove('hidden');
-  currentlyZoomedWrapper = wrapper;
-}
-
-function closeZoomModal() {
-  zoomOverlay.classList.add('hidden');
-  zoomVideo.srcObject = null;
-  currentlyZoomedWrapper = null;
-}
-
-btnCloseZoom.addEventListener('click', closeZoomModal);
-zoomOverlay.addEventListener('click', (e) => { if (e.target === zoomOverlay) closeZoomModal(); });
-
-// Local video zoom
-document.getElementById('wrapper-local').addEventListener('click', function () {
-  const label = localNicknameLabel.textContent;
-  const num = localNumberLabel.textContent;
-  openZoomModal(this, `${label} (${num})`);
-});
-
-// ═══════════════════════════════════════
-//  Room Logic
-// ═══════════════════════════════════════
-function leaveRoom() {
-  socket.emit('leave-room');
-  Object.keys(peers).forEach(id => destroyPeerConnection(id));
-  stopMedia();
-  isSharingScreen = false;
-  currentRoom = null;
-  currentRoomIdEl.textContent = '';
-  // Play leave sound
-  try { audioLeave.currentTime = 0; audioLeave.play().catch(() => {}); } catch(e) {}
-  showAppScreen(dashboardScreen);
-}
-
-// Dashboard buttons
-btnHostMeeting.addEventListener('click', async () => {
-  const hasMedia = await getMedia();
-  if (!hasMedia) return;
-  socket.emit('create-room', { 
-    nickname: currentUser.nickname, 
-    id: myNumber 
-  });
-});
-
-btnJoinMeeting.addEventListener('click', async () => {
-  const code = roomCodeInput.value.trim();
-  if (!code) return showToast('Enter a room code');
-  const hasMedia = await getMedia();
-  if (!hasMedia) return;
-  socket.emit('join-room', { roomId: code, nickname: currentUser.nickname, id: myNumber });
-});
-
-btnLeave.addEventListener('click', () => {
-  if (confirm('Leave the meeting?')) leaveRoom();
-});
-
-// Chat invite friend to current meeting
-btnInviteFriend.addEventListener('click', () => {
-  if (!currentRoom) {
-    // Create a meeting first, then invite
-    (async () => {
-      const hasMedia = await getMedia();
-      if (!hasMedia) return;
-      socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
-      // We'll send the invite after room-created fires (see socket handler below)
-      showToast('Creating meeting...');
-    })();
-    return;
-  }
-  socket.emit('invite-friend', { targetId: activeChatFriendId, roomId: currentRoom, senderNickname: currentUser.nickname, senderId: myNumber });
-  showToast('Meeting invite sent!');
-});
-
-// ═══════════════════════════════════════
-//  Socket Events — Room
-// ═══════════════════════════════════════
 socket.on('room-created', ({ roomId }) => {
-  currentRoom = roomId;
-  currentRoomIdEl.textContent = roomId;
-  showScreen(roomScreen);
-
-  // If we were trying to invite a friend, do it now
-  if (activeChatFriendId) {
-    socket.emit('invite-friend', { targetId: activeChatFriendId, roomId: currentRoom, senderNickname: currentUser.nickname, senderId: myNumber });
-    showToast(`Invite sent to #${activeChatFriendId}`);
-  }
+  joinRoom(roomId);
 });
+
+socket.on('invitation', ({ callerNumber, roomId }) => {
+  inviterNumberEl.textContent = callerNumber;
+  incomingInviteOverlay.classList.remove('hidden');
+  document.getElementById('btn-accept-invite').onclick = () => {
+    incomingInviteOverlay.classList.add('hidden');
+    joinRoom(roomId);
+  };
+  document.getElementById('btn-reject-invite').onclick = () => {
+    incomingInviteOverlay.classList.add('hidden');
+  };
+});
+
+async function joinRoom(roomId) {
+  currentRoom = roomId;
+  const hasMedia = await getMedia();
+  switchScreen('room-screen');
+  nexusSidebar.classList.add('hidden');
+  topBar.classList.add('hidden');
+  socket.emit('join-room', { roomId, nickname: currentUser.nickname, id: myNumber });
+}
 
 socket.on('room-joined', ({ roomId, users }) => {
-  currentRoom = roomId;
-  currentRoomIdEl.textContent = roomId;
-  showScreen(roomScreen);
-  users.forEach(user => {
-    addVideoStream(user.socketId, user.number, user.nickname);
-    createPeerConnection(user.socketId, user.number);
-  });
+  users.forEach(u => setupPeer(u.socketId, u.number, u.nickname, true));
+  updateParticipantList();
 });
 
-socket.on('user-joined', async ({ socketId, number, nickname }) => {
-  showToast(`${nickname || 'User'} joined the meeting`);
-  addVideoStream(socketId, number, nickname);
-  const pc = createPeerConnection(socketId, number);
-  try {
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit('offer', { targetSocketId: socketId, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
-  } catch (err) { console.error('Failed creating offer', err); }
+socket.on('user-joined', (u) => {
+  showToast(`${u.nickname} joined the call`);
+  setupPeer(u.socketId, u.number, u.nickname, false);
+  updateParticipantList();
 });
 
-socket.on('user-left', ({ socketId, number }) => {
-  showToast(`User ${number || ''} left`);
-  destroyPeerConnection(socketId);
-});
+function setupPeer(socketId, number, nickname, isOffer) {
+  const pc = new RTCPeerConnection(iceServers);
+  peers[socketId] = { pc, number, nickname };
+  
+  localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  
+  pc.onicecandidate = (e) => {
+    if (e.candidate) socket.emit('ice-candidate', { targetSocketId: socketId, candidate: e.candidate });
+  };
+  
+  pc.ontrack = (e) => {
+    let wrapper = document.getElementById(`wrapper-${socketId}`);
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'video-wrapper';
+      wrapper.id = `wrapper-${socketId}`;
+      wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname}</div>`;
+      videoGrid.appendChild(wrapper);
+    }
+    const vid = wrapper.querySelector('video');
+    vid.srcObject = e.streams[0];
+    monitorSpeech(e.streams[0], `wrapper-${socketId}`, socketId);
+  };
 
-// ═══════════════════════════════════════
-//  Socket Events — WebRTC Signaling
-// ═══════════════════════════════════════
-socket.on('offer', async ({ senderSocketId, senderNumber, senderNickname, offer }) => {
+  if (isOffer) {
+    pc.createOffer().then(offer => {
+      pc.setLocalDescription(offer);
+      socket.emit('offer', { targetSocketId: socketId, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
+    });
+  }
+}
+
+socket.on('offer', async ({ senderSocketId, offer, senderNumber, senderNickname }) => {
   let peer = peers[senderSocketId];
   if (!peer) {
-    addVideoStream(senderSocketId, senderNumber, senderNickname);
-    createPeerConnection(senderSocketId, senderNumber);
+    setupPeer(senderSocketId, senderNumber, senderNickname, false);
     peer = peers[senderSocketId];
   }
-  try {
-    await peer.pc.setRemoteDescription(new RTCSessionDescription(offer));
-    for (const c of peer.pendingIceCandidates) {
-      try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
-    }
-    peer.pendingIceCandidates = [];
-    const answer = await peer.pc.createAnswer();
-    await peer.pc.setLocalDescription(answer);
-    socket.emit('answer', { targetSocketId: senderSocketId, answer });
-  } catch (err) { console.error('Error handling offer', err); }
+  await peer.pc.setRemoteDescription(new RTCSessionDescription(offer));
+  const answer = await peer.pc.createAnswer();
+  await peer.pc.setLocalDescription(answer);
+  socket.emit('answer', { targetSocketId: senderSocketId, answer });
 });
 
-socket.on('answer', async ({ senderSocketId, answer }) => {
-  const peer = peers[senderSocketId];
-  if (peer) {
-    try {
-      await peer.pc.setRemoteDescription(new RTCSessionDescription(answer));
-      for (const c of peer.pendingIceCandidates) {
-        try { await peer.pc.addIceCandidate(new RTCIceCandidate(c)); } catch (e) {}
-      }
-      peer.pendingIceCandidates = [];
-    } catch (err) { console.error('Error handling answer', err); }
-  }
+socket.on('answer', ({ senderSocketId, answer }) => {
+  peers[senderSocketId]?.pc.setRemoteDescription(new RTCSessionDescription(answer));
 });
 
-socket.on('ice-candidate', async ({ senderSocketId, candidate }) => {
-  const peer = peers[senderSocketId];
-  if (peer) {
-    if (peer.pc.remoteDescription) {
-      try { await peer.pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch (err) { console.error(err); }
-    } else {
-      peer.pendingIceCandidates.push(candidate);
-    }
-  }
+socket.on('ice-candidate', ({ senderSocketId, candidate }) => {
+  peers[senderSocketId]?.pc.addIceCandidate(new RTCIceCandidate(candidate));
 });
 
-// ═══════════════════════════════════════
-//  Socket Events — Invitations
-// ═══════════════════════════════════════
-socket.on('invitation', ({ callerNickname, callerNumber, roomId }) => {
-  currentInviteRoom = roomId;
-  currentInviter = callerNumber;
-  inviterNumberEl.textContent = `${callerNickname} (${callerNumber})`;
-  incomingInviteOverlay.classList.remove('hidden');
-  // Play ring sound on loop
-  try { audioRing.currentTime = 0; audioRing.play().catch(() => {}); } catch(e) {}
+socket.on('user-left', ({ socketId }) => {
+  const wrapper = document.getElementById(`wrapper-${socketId}`);
+  if (wrapper) wrapper.remove();
+  if (peers[socketId]) { peers[socketId].pc.close(); delete peers[socketId]; }
+  updateParticipantList();
 });
 
-btnAcceptInvite.addEventListener('click', async () => {
-  incomingInviteOverlay.classList.add('hidden');
-  // Stop ring sound
-  try { audioRing.pause(); audioRing.currentTime = 0; } catch(e) {}
-  const hasMedia = await getMedia();
-  if (!hasMedia) return;
-  socket.emit('join-room', { roomId: currentInviteRoom, nickname: currentUser.nickname, id: myNumber });
+function updateParticipantList() {
+  pList.innerHTML = `<div style="display:flex; align-items:center; gap:12px; padding:4px; border-radius:8px; background:rgba(255,255,255,0.05);">
+    <div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">ME</div>
+    <div style="flex:1; font-size:13px; font-weight:600;">You</div>
+    <svg viewBox="0 0 24 24" width="14" fill="none" stroke="var(--success)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+  </div>`;
+  Object.values(peers).forEach(p => {
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex; align-items:center; gap:12px; padding:4px;';
+    div.innerHTML = `
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:1px solid var(--border);">${p.nickname.substring(0,1).toUpperCase()}</div>
+      <div style="flex:1; font-size:13px;">${p.nickname}</div>
+      <svg viewBox="0 0 24 24" width="14" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+    `;
+    pList.appendChild(div);
+  });
+}
+
+btnLeave.onclick = () => {
+  socket.emit('leave-room');
+  location.reload();
+};
+
+// Messaging
+btnSendRoomChat.onclick = () => {
+  const msg = roomChatInput.value.trim();
+  if (!msg) return;
+  socket.emit('room-chat', { msg, sender: currentUser.nickname });
+  addRoomMessage('You', msg, true);
+  roomChatInput.value = '';
+};
+
+socket.on('room-chat', ({ msg, sender }) => addRoomMessage(sender, msg, false));
+
+function addRoomMessage(sender, msg, isMe) {
+  if (roomMessages.querySelector('p')) roomMessages.innerHTML = '';
+  const div = document.createElement('div');
+  div.style.marginBottom = '12px';
+  div.innerHTML = `<span style="font-weight:700; color:${isMe ? 'var(--accent)' : 'var(--text-2)'}; font-size:11px;">${sender.toUpperCase()}</span><p style="margin-top:2px;">${msg}</p>`;
+  roomMessages.appendChild(div);
+  roomMessages.scrollTop = roomMessages.scrollHeight;
+}
+
+// Media toggles
+btnMute.onclick = () => {
+  isAudioMuted = !isAudioMuted;
+  localStream.getAudioTracks()[0].enabled = !isAudioMuted;
+  btnMute.classList.toggle('active', !isAudioMuted);
+  btnMute.querySelector('.icon-mic-on').classList.toggle('hidden', isAudioMuted);
+  btnMute.querySelector('.icon-mic-off').classList.toggle('hidden', !isAudioMuted);
+};
+
+btnVideo.onclick = () => {
+  isVideoMuted = !isVideoMuted;
+  localStream.getVideoTracks()[0].enabled = !isVideoMuted;
+  btnVideo.classList.toggle('active', !isVideoMuted);
+  btnVideo.querySelector('.icon-vid-on').classList.toggle('hidden', isVideoMuted);
+  btnVideo.querySelector('.icon-vid-off').classList.toggle('hidden', !isVideoMuted);
+};
+
+// Sidebar Nav
+sidebarNavItems.forEach(i => {
+  i.onclick = () => switchScreen(i.dataset.screen);
 });
 
-btnRejectInvite.addEventListener('click', () => {
-  incomingInviteOverlay.classList.add('hidden');
-  // Stop ring sound
-  try { audioRing.pause(); audioRing.currentTime = 0; } catch(e) {}
-  currentInviteRoom = null;
-  currentInviter = null;
-});
-
-socket.on('call-error', ({ message }) => {
-  showToast(message);
-  if (!currentRoom) stopMedia();
-});
-
-// ═══════════════════════════════════════
-//  Volume Control
-// ═══════════════════════════════════════
-volumeSlider.addEventListener('input', () => {
-  const val = parseFloat(volumeSlider.value);
-  volumePercent.textContent = Math.round(val * 100) + '%';
-  if (activeVolumePeerId && volumeNodes[activeVolumePeerId]) {
-    volumeNodes[activeVolumePeerId].gain.value = val;
-  }
-});
-
-btnCloseVolume.addEventListener('click', () => {
-  volumeModal.classList.add('hidden');
-  activeVolumePeerId = null;
-});
-
-// ═══════════════════════════════════════
-//  Theme Toggle
-// ═══════════════════════════════════════
-document.getElementById('btn-theme-toggle').addEventListener('click', () => {
-  document.body.classList.toggle('dark-mode');
-});
-
-// ═══════════════════════════════════════
-//  Bootstrap
-// ═══════════════════════════════════════
 checkMe();
+populateDevices();
+async function populateDevices() {
+  const ds = await navigator.mediaDevices.enumerateDevices();
+  ds.forEach(d => {
+    const o = document.createElement('option');
+    o.value = d.deviceId; o.text = d.label || (d.kind === 'videoinput' ? 'Camera' : 'Mic');
+    if (d.kind === 'videoinput') videoSourceSelect.add(o);
+    else if (d.kind === 'audioinput') audioSourceSelect.add(o);
+  });
+}
