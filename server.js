@@ -12,10 +12,12 @@ const app = express();
 const JWT_SECRET = 'nestconnect_ultra_secret_123';
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 
-// Ensure data directory and users file exist
+// Ensure data directory and users/messages file exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, JSON.stringify({}));
+if (!fs.existsSync(MESSAGES_FILE)) fs.writeFileSync(MESSAGES_FILE, JSON.stringify({}));
 
 app.use(express.json());
 app.use(cookieParser());
@@ -27,6 +29,16 @@ function getUsers() {
 }
 function saveUsers(users) {
   fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// Helper to load/save messages
+function getMessages() {
+  if (!fs.existsSync(MESSAGES_FILE)) return {};
+  const content = fs.readFileSync(MESSAGES_FILE, 'utf8');
+  return content ? JSON.parse(content) : {};
+}
+function saveMessages(messages) {
+  fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
 }
 
 // Generate a unique 6-digit strict ID
@@ -67,7 +79,8 @@ app.post('/api/register', async (req, res) => {
     nickname,
     id: strictId,
     friends: [],
-    friendRequests: []
+    friendRequests: [],
+    sentRequests: []
   };
   saveUsers(users);
   res.json({ success: true });
@@ -89,7 +102,17 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/me', authenticate, (req, res) => {
   const users = getUsers();
   const user = users[req.userEmail];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  
   const { password, ...safeUser } = user;
+  
+  // Resolve friends to objects {id, nickname}
+  const resolvedFriends = (safeUser.friends || []).map(fid => {
+    const friendObj = Object.values(users).find(u => u.id === fid);
+    return friendObj ? { id: fid, nickname: friendObj.nickname } : { id: fid, nickname: 'Unknown' };
+  });
+  
+  safeUser.friends = resolvedFriends;
   res.json(safeUser);
 });
 
@@ -103,17 +126,19 @@ app.post('/api/friends/request', authenticate, (req, res) => {
   const { targetId } = req.body;
   const users = getUsers();
   const sender = users[req.userEmail];
-  
   if (targetId === sender.id) return res.status(400).json({ error: 'Cannot add yourself' });
-
   const target = Object.values(users).find(u => u.id === targetId);
   if (!target) return res.status(404).json({ error: 'User not found' });
-  
   if (target.friends.includes(sender.id)) return res.status(400).json({ error: 'Already friends' });
   if (target.friendRequests.includes(sender.id)) return res.status(400).json({ error: 'Request already sent' });
-
   target.friendRequests.push(sender.id);
+  sender.sentRequests.push(target.id);
   saveUsers(users);
+
+  // Notify receiver in real-time
+  const targetSid = idToSocketId.get(targetId);
+  if (targetSid) io.to(targetSid).emit('friend-request-received', { fromId: sender.id, fromNickname: sender.nickname });
+
   res.json({ success: true });
 });
 
@@ -121,26 +146,41 @@ app.post('/api/friends/accept', authenticate, (req, res) => {
   const { senderId } = req.body;
   const users = getUsers();
   const receiver = users[req.userEmail];
-
   const reqIndex = receiver.friendRequests.indexOf(senderId);
   if (reqIndex === -1) return res.status(400).json({ error: 'No request found' });
-
   receiver.friendRequests.splice(reqIndex, 1);
   receiver.friends.push(senderId);
-  
   const sender = Object.values(users).find(u => u.id === senderId);
-  if (sender) sender.friends.push(receiver.id);
-  
+  if (sender) {
+    sender.friends.push(receiver.id);
+    const sentIdx = sender.sentRequests ? sender.sentRequests.indexOf(receiver.id) : -1;
+    if (sentIdx !== -1) sender.sentRequests.splice(sentIdx, 1);
+    
+    // Notify sender in real-time
+    const senderSid = idToSocketId.get(senderId);
+    if (senderSid) io.to(senderSid).emit('friend-request-accepted', { id: receiver.id, nickname: receiver.nickname });
+  }
   saveUsers(users);
   res.json({ success: true });
 });
 
-// Returns which of the current user's friends are online right now
 app.get('/api/online-friends', authenticate, (req, res) => {
   const users = getUsers();
   const user = users[req.userEmail];
   const onlineFriends = (user.friends || []).filter(fid => idToSocketId.has(fid));
   res.json({ onlineFriends });
+});
+
+// --- Chat Messages API ---
+app.get('/api/messages/:otherId', authenticate, (req, res) => {
+  const users = getUsers();
+  const me = users[req.userEmail];
+  const otherId = req.params.otherId;
+  if (!me) return res.status(401).json({ error: 'Unauthorized' });
+  const messages = getMessages();
+  const chatKey = [me.id, otherId].sort().join('_');
+  const chatHistory = messages[chatKey] || [];
+  res.json({ history: chatHistory });
 });
 
 // --- Server Setup ---
@@ -223,9 +263,26 @@ io.on('connection', (socket) => {
 
   // Direct Messaging
   socket.on('send-chat-msg', ({ targetId, message, senderNickname }) => {
+    const senderId = socketIdToId.get(socket.id);
+    if (!senderId) return;
+
+    const messages = getMessages();
+    const chatKey = [senderId, targetId].sort().join('_');
+    if (!messages[chatKey]) messages[chatKey] = [];
+
+    const newMsg = {
+      senderId,
+      senderNickname,
+      message,
+      timestamp: new Date().toISOString()
+    };
+
+    messages[chatKey].push(newMsg);
+    saveMessages(messages);
+
     const targetSid = idToSocketId.get(targetId);
     if (targetSid) {
-      io.to(targetSid).emit('receive-chat-msg', { senderId: socketIdToId.get(socket.id), senderNickname, message });
+      io.to(targetSid).emit('receive-chat-msg', { senderId, senderNickname, message });
     }
   });
 
@@ -234,6 +291,13 @@ io.on('connection', (socket) => {
     const targetSid = idToSocketId.get(targetId);
     if (targetSid) {
       io.to(targetSid).emit('invitation', { callerNumber: senderId, callerNickname: senderNickname, roomId });
+    }
+  });
+
+  socket.on('reject-invitation', ({ targetId }) => {
+    const targetSid = idToSocketId.get(targetId);
+    if (targetSid) {
+      io.to(targetSid).emit('invitation-rejected', { fromNumber: socketIdToId.get(socket.id) });
     }
   });
 
@@ -273,7 +337,19 @@ io.on('connection', (socket) => {
   });
 });
 
+const os = require('os');
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`NestConnect Server running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  const interfaces = os.networkInterfaces();
+  console.log(`\n\x1b[36m🚀 NestConnect Server is LIVE!\x1b[0m`);
+  console.log(`\x1b[32mLocal:   http://localhost:${PORT}\x1b[0m`);
+  
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        console.log(`\x1b[32mNetwork: http://${iface.address}:${PORT}\x1b[0m`);
+      }
+    }
+  }
+  console.log(`\n\x1b[33mNote:\x1b[0m For WebRTC (video/audio) to work on other devices, you MUST use HTTPS or a secure tunnel.\n`);
 });

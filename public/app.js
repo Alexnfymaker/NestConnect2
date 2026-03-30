@@ -46,11 +46,22 @@ const roomMessages     = document.getElementById('room-messages');
 const roomChatInput    = document.getElementById('room-chat-input');
 const btnSendRoomChat  = document.getElementById('btn-send-room-chat');
 
+// Direct Chat
+const directChatModal    = document.getElementById('direct-chat-modal');
+const directChatMessages = document.getElementById('direct-chat-messages');
+const directChatInput    = document.getElementById('direct-chat-input');
+const btnSendDirectChat  = document.getElementById('btn-send-direct-chat');
+const chatFriendName     = document.getElementById('chat-friend-name');
+const chatFriendAvatar   = document.getElementById('chat-friend-avatar');
+
+let activeChatFriendId = null;
+
 // Friends
 const friendIdInput    = document.getElementById('friend-id-input');
 const btnAddFriend     = document.getElementById('btn-add-friend');
 const friendsListCont  = document.getElementById('friends-list');
-const pendingRequestsList = document.getElementById('pending-requests');
+const pendingRequestsList = document.getElementById('pending-requests-list');
+const sentRequestsList    = document.getElementById('sent-requests-list');
 
 // Incoming Invite
 const incomingInviteOverlay = document.getElementById('incoming-invite-overlay');
@@ -86,6 +97,16 @@ const volumeNodes = {};
 const speechIntervals = {};
 let audioContext = null;
 
+// Sound Effects
+const soundLeave = new Audio('https://image2url.com/r2/default/audio/1774801535700-cb574d52-d50d-4a26-90ea-17da26aa2318.mp3');
+const soundInvite = new Audio('https://image2url.com/r2/default/audio/1774801683234-d2ff66c9-a510-47d0-a6d0-267a4a641329.mp3');
+soundInvite.loop = true;
+
+const soundJoinMeeting = new Audio('https://ik.imagekit.io/00ezbwkcd/Someone%20is%20Joiniing%20Call.MP3');
+const soundLeaveMeeting = new Audio('https://ik.imagekit.io/00ezbwkcd/Someone%20is%20leaving%20Call.MP3');
+const soundOutgoingRing = new Audio('https://ik.imagekit.io/00ezbwkcd/YouCallingSmb.MP3?updatedAt=1774892001124');
+soundOutgoingRing.loop = true;
+
 const iceServers = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -104,19 +125,44 @@ function showToast(msg) {
 }
 
 function toggleTheme() {
-  document.body.classList.toggle('light-mode');
-  const isLight = document.body.classList.contains('light-mode');
-  showToast(isLight ? 'Light Mode Enabled' : 'Dark Mode Enabled');
+  document.body.classList.toggle('dark-mode');
+  const isDark = document.body.classList.contains('dark-mode');
+  showToast(isDark ? 'Dark Mode Enabled' : 'Light Mode Enabled (Default)');
 }
 
 function switchScreen(screenId) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  
+  // Update sidebar nav state
   sidebarNavItems.forEach(item => {
     item.classList.toggle('active', item.dataset.screen === screenId);
   });
+
+  // Update header nav state
+  document.querySelectorAll('.header-nav-link').forEach(link => {
+    link.classList.toggle('active', link.dataset.screen === screenId);
+  });
+
   const screen = document.getElementById(screenId);
   if (screen) screen.classList.add('active');
+
+  // Handle Active Call Badge and Sidebar visibility
+  const badge = document.getElementById('call-active-badge');
+  if (currentRoom) {
+    if (screenId === 'room-screen') {
+      badge.classList.add('hidden');
+      nexusSidebar.classList.add('hidden');
+    } else {
+      badge.classList.remove('hidden');
+      nexusSidebar.classList.remove('hidden');
+    }
+  } else {
+    badge.classList.add('hidden');
+    nexusSidebar.classList.remove('hidden');
+  }
 }
+
+// Header nav logic removed, handled by delegation in app.js footer
 
 // Dialpad logic
 dialBtns.forEach(btn => {
@@ -211,15 +257,20 @@ async function refreshFriendsUI() {
     if (!user.friends || user.friends.length === 0) {
       friendsListCont.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: var(--text-3); padding: 40px;">No contacts added yet. Use the 6-digit ID to find friends.</div>`;
     } else {
-      user.friends.forEach(fid => {
-        const initials = fid.substring(0, 2);
+      user.friends.forEach(friend => {
+        const fid = friend.id;
+        const fname = friend.nickname;
+        const initials = fname.substring(0, 2).toUpperCase();
         const card = document.createElement('div');
         card.className = 'contact-card';
         card.innerHTML = `
           <div class="contact-avatar">${initials}</div>
-          <h3 style="font-size: 16px; margin-bottom: 4px;">Friend #${fid}</h3>
-          <p style="font-size: 12px; color: var(--text-3); margin-bottom: 20px;">Private Contact</p>
+          <h3 style="font-size: 16px; margin-bottom: 4px;">${fname}</h3>
+          <p style="font-size: 12px; color: var(--text-3); margin-bottom: 20px;">ID: #${fid}</p>
           <div style="display: flex; gap: 8px;">
+            <button class="icon-btn" style="flex:1" onclick="openDirectChat('${fid}', '${fname}')" title="Chat">
+              <svg viewBox="0 0 24 24" width="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </button>
             <button class="icon-btn" style="flex:1" onclick="dialNumberFromContact('${fid}', 'audio')">
               <svg viewBox="0 0 24 24" width="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67z"/></svg>
             </button>
@@ -232,20 +283,49 @@ async function refreshFriendsUI() {
       });
     }
 
-    // Pending requests
+    // Incoming requests
     pendingRequestsList.innerHTML = '';
     if (user.friendRequests && user.friendRequests.length > 0) {
       user.friendRequests.forEach(rid => {
         const item = document.createElement('div');
-        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; background:var(--bg-card); padding:16px; border-radius:12px; margin-bottom:8px; border:1px solid var(--border);';
-        item.innerHTML = `<span>Request from ID: <strong>${rid}</strong></span> <button onclick="acceptFriend('${rid}')" style="background:var(--success); color:white; padding:8px 16px; border-radius:8px; font-weight:700;">Accept</button>`;
+        item.className = 'card';
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:16px; margin-bottom:8px; border:1px solid var(--border);';
+        item.innerHTML = `<span>Request from ID: <strong>#${rid}</strong></span> <button onclick="acceptFriend('${rid}')" style="background:var(--success); color:white; padding:8px 16px; border-radius:8px; font-weight:700;">Accept</button>`;
         pendingRequestsList.appendChild(item);
       });
     } else {
-      pendingRequestsList.innerHTML = `<p style="color:var(--text-3); font-size:13px;">No new requests.</p>`;
+      pendingRequestsList.innerHTML = `<p style="color:var(--text-3); font-size:13px;">No incoming requests.</p>`;
+    }
+
+    // Sent requests
+    sentRequestsList.innerHTML = '';
+    if (user.sentRequests && user.sentRequests.length > 0) {
+      user.sentRequests.forEach(rid => {
+        const item = document.createElement('div');
+        item.className = 'card';
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:16px; margin-bottom:8px; border:1px solid var(--border); background: var(--bg-input); opacity: 0.8;';
+        item.innerHTML = `<span>Sent to ID: <strong>#${rid}</strong></span> <span style="font-size:11px; font-weight:700; color:var(--text-3); text-transform:uppercase;">Pending</span>`;
+        sentRequestsList.appendChild(item);
+      });
+    } else {
+      sentRequestsList.innerHTML = `<p style="color:var(--text-3); font-size:13px;">No outgoing requests.</p>`;
     }
   } catch (e) {}
 }
+
+// Real-time Social Listeners
+socket.on('friend-request-received', ({ fromNickname }) => {
+  showToast(`New friend request from ${fromNickname}!`);
+  refreshFriendsUI();
+});
+
+socket.on('friend-request-accepted', ({ nickname }) => {
+  showToast(`${nickname} accepted your friend request!`);
+  refreshFriendsUI();
+});
+
+socket.on('friend-online', ({ id }) => { refreshFriendsUI(); });
+socket.on('friend-offline', ({ id }) => { refreshFriendsUI(); });
 
 async function addFriend() {
   const targetId = friendIdInput.value.trim();
@@ -255,7 +335,11 @@ async function addFriend() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ targetId })
   });
-  if (res.ok) { showToast('Request sent!'); friendIdInput.value = ''; }
+  if (res.ok) { 
+    showToast('Request sent!'); 
+    friendIdInput.value = ''; 
+    refreshFriendsUI(); 
+  }
   else { const d = await res.json(); showToast(d.error || 'Failed'); }
 }
 
@@ -277,6 +361,72 @@ window.dialNumberFromContact = (id, type) => {
 };
 
 // ═══════════════════════════════════════
+//  Direct Chat Logic
+// ═══════════════════════════════════════
+async function openDirectChat(friendId, nickname) {
+  activeChatFriendId = friendId;
+  chatFriendName.textContent = nickname || `Friend #${friendId}`;
+  chatFriendAvatar.textContent = (nickname || '??').substring(0, 2).toUpperCase();
+  directChatModal.classList.remove('hidden');
+  directChatMessages.innerHTML = '<p style="text-align: center; color: var(--text-3); font-size: 13px; margin-top: 100px;">Loading chat history...</p>';
+
+  try {
+    const res = await fetch(`/api/messages/${friendId}`);
+    if (res.ok) {
+      const data = await res.json();
+      directChatMessages.innerHTML = '';
+      if (data.history.length === 0) {
+        directChatMessages.innerHTML = '<p style="text-align: center; color: var(--text-3); font-size: 13px; margin-top: 100px;">No messages yet. Say hello!</p>';
+      } else {
+        data.history.forEach(m => addDirectMessageUI(m.senderNickname, m.message, m.senderId === myNumber));
+      }
+    }
+  } catch (e) {
+    directChatMessages.innerHTML = '<p style="text-align: center; color: var(--danger); font-size: 13px; margin-top: 100px;">Failed to load history.</p>';
+  }
+}
+
+function closeDirectChat() {
+  directChatModal.classList.add('hidden');
+  activeChatFriendId = null;
+}
+
+function addDirectMessageUI(nickname, message, isMe) {
+  if (directChatMessages.querySelector('p')) directChatMessages.innerHTML = '';
+  const div = document.createElement('div');
+  div.style.cssText = `display: flex; flex-direction: column; margin-bottom: 16px; align-items: ${isMe ? 'flex-end' : 'flex-start'}`;
+  div.innerHTML = `
+    <span style="font-size: 9px; font-weight: 800; color: var(--text-3); text-transform: uppercase; margin-bottom: 4px;">${nickname}</span>
+    <div style="background: ${isMe ? 'var(--accent)' : 'var(--bg-input)'}; color: ${isMe ? 'var(--bg)' : 'var(--text)'}; padding: 10px 14px; border-radius: 12px; font-size: 13px; max-width: 80%; border: ${isMe ? 'none' : '1px solid var(--border)'}">${message}</div>
+  `;
+  directChatMessages.appendChild(div);
+  directChatMessages.scrollTop = directChatMessages.scrollHeight;
+}
+
+btnSendDirectChat.onclick = () => {
+  const msg = directChatInput.value.trim();
+  if (!msg || !activeChatFriendId) return;
+  socket.emit('send-chat-msg', { targetId: activeChatFriendId, message: msg, senderNickname: currentUser.nickname });
+  addDirectMessageUI('YOU', msg, true);
+  directChatInput.value = '';
+};
+
+directChatInput.onkeydown = (e) => {
+  if (e.key === 'Enter') btnSendDirectChat.click();
+};
+
+socket.on('receive-chat-msg', ({ senderId, senderNickname, message }) => {
+  if (activeChatFriendId === senderId) {
+    addDirectMessageUI(senderNickname, message, false);
+  } else {
+    showToast(`New message from ${senderNickname}`);
+  }
+});
+
+window.openDirectChat = openDirectChat;
+window.closeDirectChat = closeDirectChat;
+
+// ═══════════════════════════════════════
 //  Meeting & Room
 // ═══════════════════════════════════════
 async function getMedia() {
@@ -292,8 +442,17 @@ async function getMedia() {
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    showToast('Media access denied. Using fallback.');
-    return false;
+    // Fallback: try audio-only if video fails
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      localVideo.srcObject = localStream;
+      monitorSpeech(localStream, 'wrapper-local', 'local');
+      showToast('Camera unavailable — joined with audio only.');
+      return true;
+    } catch (e2) {
+      showToast('Media access denied. Cannot join call.');
+      return false;
+    }
   }
 }
 
@@ -314,15 +473,37 @@ function monitorSpeech(stream, wrapperId, peerId) {
 }
 
 btnHostMeeting.onclick = () => {
-  socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
+  const btn = btnHostMeeting;
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span> Connecting...';
+  setTimeout(() => {
+    socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }, 2000);
 };
 
 btnDialVideo.onclick = btnDialAudio.onclick = () => {
   if (dialNumber.length !== 6) return showToast('Enter 6-digit target ID');
   const roomId = 'room_' + Math.random().toString(36).substring(2, 9);
+  
+  // Start outgoing ring sound
+  soundOutgoingRing.play().catch(e => console.log("Sound play failed", e));
+  
   socket.emit('create-room', { nickname: currentUser.nickname, id: myNumber });
   socket.once('room-created', ({ roomId }) => {
     socket.emit('invite-friend', { targetId: dialNumber, senderId: myNumber, senderNickname: currentUser.nickname, roomId });
+    
+    // Add ringing placeholder UI
+    let wrapper = document.getElementById(`wrapper-ringing-${dialNumber}`);
+    if (!wrapper) {
+      wrapper = document.createElement('div');
+      wrapper.className = 'video-wrapper is-ringing';
+      wrapper.id = `wrapper-ringing-${dialNumber}`;
+      wrapper.innerHTML = `<div class="video-label">Friend #${dialNumber}</div>`;
+      videoGrid.appendChild(wrapper);
+    }
   });
 };
 
@@ -330,25 +511,47 @@ socket.on('room-created', ({ roomId }) => {
   joinRoom(roomId);
 });
 
-socket.on('invitation', ({ callerNumber, roomId }) => {
-  inviterNumberEl.textContent = callerNumber;
+socket.on('invitation', ({ callerNumber, callerNickname, roomId }) => {
+  inviterNumberEl.textContent = callerNickname || callerNumber;
   incomingInviteOverlay.classList.remove('hidden');
+  
+  // Play incoming call sound
+  soundInvite.play().catch(e => console.log("Audio play blocked by browser. Interaction required."));
+
   document.getElementById('btn-accept-invite').onclick = () => {
+    soundInvite.pause();
+    soundInvite.currentTime = 0;
     incomingInviteOverlay.classList.add('hidden');
     joinRoom(roomId);
   };
   document.getElementById('btn-reject-invite').onclick = () => {
+    soundInvite.pause();
+    soundInvite.currentTime = 0;
     incomingInviteOverlay.classList.add('hidden');
+    socket.emit('reject-invitation', { targetId: callerNumber });
   };
+});
+
+socket.on('invitation-rejected', ({ fromNumber }) => {
+  if (dialNumber === fromNumber) {
+    showToast(`Call declined by #${fromNumber}`);
+    soundOutgoingRing.pause();
+    soundOutgoingRing.currentTime = 0;
+    const ringWrap = document.getElementById(`wrapper-ringing-${fromNumber}`);
+    if (ringWrap) ringWrap.remove();
+  }
 });
 
 async function joinRoom(roomId) {
   currentRoom = roomId;
   const hasMedia = await getMedia();
   switchScreen('room-screen');
-  nexusSidebar.classList.add('hidden');
-  topBar.classList.add('hidden');
   socket.emit('join-room', { roomId, nickname: currentUser.nickname, id: myNumber });
+  soundJoinMeeting.play().catch(e => {}); 
+}
+
+function openSettings() {
+  document.getElementById('settings-modal').classList.remove('hidden');
 }
 
 socket.on('room-joined', ({ roomId, users }) => {
@@ -358,6 +561,16 @@ socket.on('room-joined', ({ roomId, users }) => {
 
 socket.on('user-joined', (u) => {
   showToast(`${u.nickname} joined the call`);
+  
+  // Stop Outgoing ring sound if this is the person we called
+  if (u.number === dialNumber) {
+    soundOutgoingRing.pause();
+    soundOutgoingRing.currentTime = 0;
+    const ringWrap = document.getElementById(`wrapper-ringing-${u.number}`);
+    if (ringWrap) ringWrap.remove();
+  }
+  
+  soundJoinMeeting.play().catch(e => {});
   setupPeer(u.socketId, u.number, u.nickname, false);
   updateParticipantList();
 });
@@ -378,7 +591,7 @@ function setupPeer(socketId, number, nickname, isOffer) {
       wrapper = document.createElement('div');
       wrapper.className = 'video-wrapper';
       wrapper.id = `wrapper-${socketId}`;
-      wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname}</div>`;
+      wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>`;
       videoGrid.appendChild(wrapper);
     }
     const vid = wrapper.querySelector('video');
@@ -418,30 +631,43 @@ socket.on('user-left', ({ socketId }) => {
   const wrapper = document.getElementById(`wrapper-${socketId}`);
   if (wrapper) wrapper.remove();
   if (peers[socketId]) { peers[socketId].pc.close(); delete peers[socketId]; }
+  soundLeaveMeeting.play().catch(e => {});
   updateParticipantList();
 });
 
 function updateParticipantList() {
-  pList.innerHTML = `<div style="display:flex; align-items:center; gap:12px; padding:4px; border-radius:8px; background:rgba(255,255,255,0.05);">
-    <div style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;">ME</div>
-    <div style="flex:1; font-size:13px; font-weight:600;">You</div>
+  pList.innerHTML = `<div class="participant-item">
+    <div class="participant-avatar" style="background:var(--accent);color:var(--bg);">ME</div>
+    <div class="participant-info"><span class="participant-name">You (${currentUser.nickname})</span><span class="participant-id">#${myNumber}</span></div>
     <svg viewBox="0 0 24 24" width="14" fill="none" stroke="var(--success)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
   </div>`;
   Object.values(peers).forEach(p => {
     const div = document.createElement('div');
-    div.style.cssText = 'display:flex; align-items:center; gap:12px; padding:4px;';
+    div.className = 'participant-item';
     div.innerHTML = `
-      <div style="width:32px;height:32px;border-radius:50%;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:1px solid var(--border);">${p.nickname.substring(0,1).toUpperCase()}</div>
-      <div style="flex:1; font-size:13px;">${p.nickname}</div>
-      <svg viewBox="0 0 24 24" width="14" fill="none" stroke="var(--text-3)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+      <div class="participant-avatar">${p.nickname.substring(0,1).toUpperCase()}</div>
+      <div class="participant-info"><span class="participant-name">${p.nickname}</span><span class="participant-id">#${p.number}</span></div>
+      <svg viewBox="0 0 24 24" width="14" fill="none" stroke="var(--success)" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
     `;
     pList.appendChild(div);
   });
 }
 
 btnLeave.onclick = () => {
+  // 1. Notify server
   socket.emit('leave-room');
-  location.reload();
+  
+  // 2. Add an event listener to the sound object so we reload ONLY after it's done
+  soundLeave.onended = () => {
+    location.reload();
+  };
+
+  // 3. Play the sound
+  soundLeave.play().catch(e => {
+    console.error("Sound play failed:", e);
+    // If it fails (e.g., auto-play restriction), just reload immediately
+    location.reload();
+  });
 };
 
 // Messaging
@@ -474,16 +700,68 @@ btnMute.onclick = () => {
 };
 
 btnVideo.onclick = () => {
+  const videoTrack = localStream.getVideoTracks()[0];
+  if (!videoTrack) return showToast('No camera available');
   isVideoMuted = !isVideoMuted;
-  localStream.getVideoTracks()[0].enabled = !isVideoMuted;
+  videoTrack.enabled = !isVideoMuted;
   btnVideo.classList.toggle('active', !isVideoMuted);
   btnVideo.querySelector('.icon-vid-on').classList.toggle('hidden', isVideoMuted);
   btnVideo.querySelector('.icon-vid-off').classList.toggle('hidden', !isVideoMuted);
 };
 
-// Sidebar Nav
-sidebarNavItems.forEach(i => {
-  i.onclick = () => switchScreen(i.dataset.screen);
+// Screen sharing
+btnScreenShare.onclick = async () => {
+  if (!isSharingScreen) {
+    try {
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      const screenTrack = screenStream.getVideoTracks()[0];
+      // Replace video track in all peer connections
+      Object.values(peers).forEach(p => {
+        const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) sender.replaceTrack(screenTrack);
+      });
+      // Show screen share in local video
+      localVideo.srcObject = screenStream;
+      isSharingScreen = true;
+      btnScreenShare.classList.add('active');
+      showToast('Screen sharing started');
+      // When user stops sharing via browser UI
+      screenTrack.onended = () => stopScreenShare();
+    } catch (e) {
+      showToast('Screen sharing cancelled');
+    }
+  } else {
+    stopScreenShare();
+  }
+};
+
+function stopScreenShare() {
+  if (!isSharingScreen) return;
+  isSharingScreen = false;
+  btnScreenShare.classList.remove('active');
+  if (screenStream) {
+    screenStream.getTracks().forEach(t => t.stop());
+    screenStream = null;
+  }
+  // Restore camera track
+  const camTrack = localStream.getVideoTracks()[0];
+  if (camTrack) {
+    Object.values(peers).forEach(p => {
+      const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) sender.replaceTrack(camTrack);
+    });
+  }
+  localVideo.srcObject = localStream;
+  showToast('Screen sharing stopped');
+}
+
+// Navigation Delegation
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-screen]');
+  if (btn) {
+    const screenId = btn.getAttribute('data-screen');
+    if (screenId) switchScreen(screenId);
+  }
 });
 
 checkMe();
