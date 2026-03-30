@@ -1,7 +1,8 @@
-const { app, BrowserWindow, session, desktopCapturer, ipcMain, Notification } = require('electron');
+const { app, BrowserWindow, session, desktopCapturer, ipcMain, Notification, Tray, Menu } = require('electron');
 const path = require('path');
 
 let mainWindow;
+let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -24,6 +25,14 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+  });
+
+  // Handle close to minimize to tray instead of quit
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   // Chrome-like UA so WebRTC APIs are fully available
@@ -81,6 +90,18 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  // Create tray icon
+  tray = new Tray(path.join(__dirname, 'public/favicon.ico')); // Assuming favicon.ico exists
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show NestConnect', click: () => { mainWindow.show(); } },
+    { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
+  ]);
+  tray.setToolTip('NestConnect');
+  tray.setContextMenu(contextMenu);
+  tray.on('click', () => {
+    mainWindow.show();
+  });
+
   // Set app to autostart on Windows
   if (process.platform === 'win32') {
     app.setLoginItemSettings({
@@ -107,5 +128,8 @@ ipcMain.on('desktop-notification', (event, { title, options }) => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  // On macOS, keep app running with dock icon
+  if (process.platform !== 'darwin') {
+    // On Windows/Linux, app stays in tray
+  }
 });
