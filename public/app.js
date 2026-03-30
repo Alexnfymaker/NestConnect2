@@ -739,7 +739,7 @@ socket.on('user-joined', (u) => {
 
 function setupPeer(socketId, number, nickname, isOffer) {
   const pc = new RTCPeerConnection(iceServers);
-  peers[socketId] = { pc, number, nickname, videoSender: null };
+  peers[socketId] = { pc, number, nickname, videoSender: null, audioGain: null };
   
   // Explicitly add tracks and store the video sender for screensharing updates
   const audioTrack = localStream.getAudioTracks()[0];
@@ -763,13 +763,38 @@ function setupPeer(socketId, number, nickname, isOffer) {
       wrapper.className = 'video-wrapper';
       wrapper.id = `wrapper-${socketId}`;
       wrapper.onclick = () => openFullscreenVideo(`video-${socketId}`, nickname);
-      wrapper.oncontextmenu = (ev) => showVolumeContextMenu(ev, socketId, nickname);
-      wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>`;
+      wrapper.innerHTML = `
+        <video id="video-${socketId}" autoplay playsinline></video>
+        <div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>
+        <div class="video-volume-control">
+          <input type="range" class="peer-volume-slider" min="0" max="1" step="0.1" value="1" data-peer="${socketId}">
+        </div>
+      `;
       videoGrid.appendChild(wrapper);
+      
+      // Attach volume change handler
+      const volumeSlider = wrapper.querySelector('.peer-volume-slider');
+      volumeSlider.oninput = () => {
+        const gain = parseFloat(volumeSlider.value);
+        if (peers[socketId].audioGain) {
+          peers[socketId].audioGain.gain.value = gain;
+        }
+      };
     }
-    const vid = wrapper.querySelector('video');
-    vid.srcObject = e.streams[0];
-    monitorSpeech(e.streams[0], `wrapper-${socketId}`, socketId);
+    
+    if (e.track.kind === 'audio') {
+      // Create gain node for audio volume control
+      if (!audioContext) audioContext = new AudioContext();
+      const source = audioContext.createMediaStreamSource(e.streams[0]);
+      peers[socketId].audioGain = audioContext.createGain();
+      peers[socketId].audioGain.gain.value = 1; // default
+      source.connect(peers[socketId].audioGain);
+      peers[socketId].audioGain.connect(audioContext.destination);
+    } else if (e.track.kind === 'video') {
+      const vid = wrapper.querySelector('video');
+      vid.srcObject = e.streams[0];
+      monitorSpeech(e.streams[0], `wrapper-${socketId}`, socketId);
+    }
   };
 
   if (isOffer) {
