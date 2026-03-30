@@ -992,3 +992,36 @@ input[type="range"].volume-slider::-webkit-slider-thumb {
   border: 2px solid var(--bg-card);
   box-shadow: 0 0 10px rgba(0,0,0,0.2);
 }
+
+.screen-picker-item {
+  background: var(--bg-input); 
+  border: 2px solid var(--border); 
+  border-radius: var(--radius-md); 
+  padding: 12px; 
+  cursor: pointer; 
+  transition: all 0.2s; 
+  display: flex !important; 
+  flex-direction: column; 
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+.screen-picker-item:hover {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+.screen-picker-item img {
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+.screen-picker-item span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}

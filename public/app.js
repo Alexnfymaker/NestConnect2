@@ -71,6 +71,9 @@ const btnAcceptInvite       = document.getElementById('btn-accept-invite');
 const settingsModal    = document.getElementById('settings-modal');
 const videoSourceSelect = document.getElementById('video-source-select');
 const audioSourceSelect = document.getElementById('audio-source-select');
+const screenPickerModal = document.getElementById('screen-picker-modal');
+const screenPickerList  = document.getElementById('screen-picker-list');
+const btnClosePicker    = document.getElementById('btn-close-picker');
 
 // Utilities
 const toastEl = document.getElementById('toast');
@@ -877,6 +880,33 @@ document.addEventListener('click', (e) => {
 checkMe();
 loadTheme();
 populateDevices();
+
+// ── Screen Picker Handler for Electron ──
+if (window.electronBridge) {
+  window.electronBridge.onShowScreenPicker((sources) => {
+    screenPickerList.innerHTML = '';
+    sources.forEach(src => {
+      const btn = document.createElement('div');
+      btn.className = 'screen-picker-item';
+      btn.innerHTML = `
+        <img src="${src.thumbnail}">
+        <span>${src.name}</span>
+      `;
+      btn.onclick = () => {
+        window.electronBridge.selectScreen(src.id);
+        screenPickerModal.classList.add('hidden');
+      };
+      screenPickerList.appendChild(btn);
+    });
+    screenPickerModal.classList.remove('hidden');
+  });
+}
+
+btnClosePicker.onclick = () => {
+  if (window.electronBridge) window.electronBridge.cancelScreenPicker();
+  screenPickerModal.classList.add('hidden');
+};
+
 async function populateDevices() {
   const ds = await navigator.mediaDevices.enumerateDevices();
   ds.forEach(d => {

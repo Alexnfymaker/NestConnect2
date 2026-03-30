@@ -374,5 +374,21 @@
     </div>
   </div>
 
+  <!-- ── Screen Picker Modal ── -->
+  <div id="screen-picker-modal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); z-index: 20000; display: flex; align-items: center; justify-content: center;">
+    <div class="card" style="width: 650px; max-height: 85vh; display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <h2 style="font-size: 20px; font-weight: 700; color: var(--text);">Select Screen or Window</h2>
+        <button id="btn-close-picker" style="color: var(--text-3); background: none; border: none; cursor: pointer;">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div id="screen-picker-list" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; padding: 4px;">
+        <!-- Sources populated by app.js -->
+      </div>
+      <p style="margin-top: 20px; font-size: 11px; color: var(--text-3); text-align: center; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Choose a source to start sharing</p>
+    </div>
+  </div>
+
 </body>
 </html>

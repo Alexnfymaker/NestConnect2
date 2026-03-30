@@ -42,7 +42,7 @@ function createWindow() {
   // ── Screen Share Picker via desktopCapturer ──
   // When the page calls getDisplayMedia, we intercept and provide a native picker
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    desktopCapturer.getSources({ types: ['screen', 'window'] }).then((sources) => {
+    desktopCapturer.getSources({ types: ['screen', 'window'], thumbnailSize: { width: 400, height: 225 } }).then((sources) => {
       // Show a native window picker dialog using the preload bridge
       // Send sources to renderer via IPC so user can pick
       mainWindow.webContents.send('show-screen-picker', sources.map(s => ({
