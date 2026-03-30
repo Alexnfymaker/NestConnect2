@@ -1,17 +1,25 @@
 const { app, BrowserWindow, session, desktopCapturer, ipcMain, Notification, Tray, Menu } = require('electron');
+const fs = require('fs');
 const path = require('path');
+
+function resolveIcon(...parts) {
+  const fullPath = path.join(__dirname, ...parts);
+  return fs.existsSync(fullPath) ? fullPath : null;
+}
 
 let mainWindow;
 let tray;
 
 function createWindow() {
+  const windowIcon = resolveIcon('public', 'assets', 'icon.ico') || resolveIcon('public', 'favicon.ico') || undefined;
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1000,
     minHeight: 700,
     title: "NestConnect",
-    icon: path.join(__dirname, 'public/assets/icon.ico'), // Ensure icon is loaded if exists
+    icon: windowIcon,
     backgroundColor: '#0a0a0a',
     show: false, // Don't show until ready
     autoHideMenuBar: true,
@@ -91,7 +99,12 @@ app.whenReady().then(() => {
   createWindow();
 
   // Create tray icon
-  tray = new Tray(path.join(__dirname, 'public/favicon.ico')); // Assuming favicon.ico exists
+  const trayIconPath = resolveIcon('public', 'favicon.ico') || resolveIcon('public', 'assets', 'icon.ico');
+  if (trayIconPath) {
+    tray = new Tray(trayIconPath);
+  } else {
+    tray = new Tray(process.platform === 'win32' ? path.join(app.getAppPath(), 'resources', 'app', 'public', 'favicon.ico') : undefined);
+  }
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show NestConnect', click: () => { mainWindow.show(); } },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
@@ -102,12 +115,21 @@ app.whenReady().then(() => {
     mainWindow.show();
   });
 
-  // Set app to autostart on Windows
-  if (process.platform === 'win32') {
+  // Set app to autostart on startup (Windows + macOS)
+  if (process.platform === 'win32' || process.platform === 'darwin') {
     app.setLoginItemSettings({
       openAtLogin: true,
-      path: app.getPath('exe')
+      path: app.getPath('exe'),
+      args: ['--hidden']
     });
+
+    const loginItemSettings = app.getLoginItemSettings();
+    console.log('Auto-start login item settings:', loginItemSettings);
+  }
+
+  if (process.platform === 'linux') {
+    // Linux: app.setLoginItemSettings is unsupported; you can integrate with .desktop file in ~/.config/autostart
+    console.log('Auto-start setup suggested for Linux via ~/.config/autostart');
   }
 
   app.on('activate', () => {
@@ -132,4 +154,8 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     // On Windows/Linux, app stays in tray
   }
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.warn('Unhandled Promise Rejection:', reason);
 });

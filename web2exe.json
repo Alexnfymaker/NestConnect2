@@ -6,10 +6,13 @@
         "export_dir": "output",
         "force_download": false,
         "nw_compression_level": 0,
-        "output_pattern": "",
+        "output_pattern": "NestConnect-${version}-${platform}",
         "sdk_build": false,
         "uncompressed_folder": false,
         "whitelist": "",
-        "windows-x64": true
+        "windows-x64": true,
+        "windows-ia32": false,
+        "linux-x64": false,
+        "mac": false
     }
 }

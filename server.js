@@ -95,7 +95,12 @@ app.post('/api/login', async (req, res) => {
   }
 
   const token = jwt.sign({ email: user.email }, JWT_SECRET, { expiresIn: '7d' });
-  res.cookie('token', token, { httpOnly: true });
+  res.cookie('token', token, {
+    httpOnly: true,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days persist across restarts
+    sameSite: 'lax',
+    secure: false // Set true in production HTTPS environment
+  });
   res.json({ success: true, user: { nickname: user.nickname, id: user.id } });
 });
 
@@ -117,7 +122,11 @@ app.get('/api/me', authenticate, (req, res) => {
 });
 
 app.post('/api/logout', (req, res) => {
-  res.clearCookie('token');
+  res.clearCookie('token', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: false
+  });
   res.json({ success: true });
 });
 

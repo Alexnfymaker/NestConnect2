@@ -211,7 +211,7 @@ dialerOutput.onclick = () => { dialNumber = ''; dialerOutput.textContent = '--';
 // ═══════════════════════════════════════
 async function checkMe() {
   try {
-    const res = await fetch('/api/me');
+    const res = await fetch('/api/me', { credentials: 'include' });
     if (res.ok) onLoggedIn(await res.json());
     else { loginScreen.style.display = 'flex'; switchScreen('login-screen'); }
   } catch (e) { switchScreen('login-screen'); }
@@ -227,6 +227,7 @@ async function handleAuth() {
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
@@ -259,7 +260,16 @@ function onLoggedIn(user) {
 
   // Request notification permission on first login
   if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-    Notification.requestPermission();
+    Notification.requestPermission().then(val => {
+      if (val === 'granted') showToast('Notifications enabled');
+      else showToast('Notifications disabled for now');
+    });
+  }
+
+  // After sign-in we explicitly notify friend online logic (for state debugging)
+  showToast('You are online');
+  if (Notification.permission === 'granted') {
+    new Notification('NestConnect', { body: 'You are online and ready to receive calls/messages' });
   }
 }
 
@@ -276,7 +286,7 @@ function toggleAuthMode(reg) {
 
 btnAuthMain.onclick = handleAuth;
 goToRegister.onclick = (e) => { e.preventDefault(); toggleAuthMode(!isRegisterMode); };
-btnLogout.onclick = async () => { await fetch('/api/logout', { method: 'POST' }); location.reload(); };
+btnLogout.onclick = async () => { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); location.reload(); };
 
 // ═══════════════════════════════════════
 //  Friends & Contacts
@@ -364,8 +374,20 @@ socket.on('friend-request-accepted', ({ nickname }) => {
   refreshFriendsUI();
 });
 
-socket.on('friend-online', ({ id }) => { onlineFriends.add(id); refreshFriendsUI(); });
-socket.on('friend-offline', ({ id }) => { onlineFriends.delete(id); refreshFriendsUI(); });
+socket.on('friend-online', ({ id }) => {
+  onlineFriends.add(id);
+  refreshFriendsUI();
+  showToast(`Friend #${id} is now online`);
+  if (Notification.permission === 'granted') {
+    new Notification('Friend Online', { body: `Friend #${id} is online now.` });
+  }
+});
+
+socket.on('friend-offline', ({ id }) => {
+  onlineFriends.delete(id);
+  refreshFriendsUI();
+  showToast(`Friend #${id} went offline`);
+});
 
 async function addFriend() {
   const targetId = friendIdInput.value.trim();
