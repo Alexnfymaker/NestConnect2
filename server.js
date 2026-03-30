@@ -261,6 +261,19 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Screen sharing signaling
+  socket.on('screenshare-started', () => {
+    if (socket.roomId) {
+      socket.to(socket.roomId).emit('screenshare-started', { senderSocketId: socket.id });
+    }
+  });
+
+  socket.on('screenshare-stopped', () => {
+    if (socket.roomId) {
+      socket.to(socket.roomId).emit('screenshare-stopped', { senderSocketId: socket.id });
+    }
+  });
+
   // Direct Messaging
   socket.on('send-chat-msg', ({ targetId, message, senderNickname }) => {
     const senderId = socketIdToId.get(socket.id);

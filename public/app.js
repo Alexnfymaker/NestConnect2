@@ -592,7 +592,7 @@ function setupPeer(socketId, number, nickname, isOffer) {
     const screenVideoTrack = screenStream.getVideoTracks()[0];
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) pc.addTrack(audioTrack, localStream);
-    if (screenVideoTrack) pc.addTrack(screenVideoTrack, screenStream);
+    if (screenVideoTrack) pc.addTrack(screenVideoTrack, localStream);
   } else {
     localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
   }
@@ -607,7 +607,7 @@ function setupPeer(socketId, number, nickname, isOffer) {
       wrapper = document.createElement('div');
       wrapper.className = 'video-wrapper';
       wrapper.id = `wrapper-${socketId}`;
-      wrapper.onclick = () => openFullscreenVideo(e.streams[0], nickname);
+      wrapper.onclick = () => openFullscreenVideo(`video-${socketId}`, nickname);
       wrapper.oncontextmenu = (ev) => showVolumeContextMenu(ev, socketId, nickname);
       wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>`;
       videoGrid.appendChild(wrapper);
@@ -747,9 +747,12 @@ btnScreenShare.onclick = async () => {
       
       // Show screen in local preview
       localVideo.srcObject = screenStream;
+      localVideo.style.objectFit = 'contain';
       isSharingScreen = true;
       btnScreenShare.classList.add('active');
       showToast(`Screen sharing started (${replacedCount} peer(s))`);
+      
+      socket.emit('screenshare-started');
       
       // Auto-stop when user clicks "Stop sharing" in browser UI
       screenTrack.onended = () => stopScreenShare();
@@ -766,6 +769,8 @@ async function stopScreenShare() {
   if (!isSharingScreen) return;
   isSharingScreen = false;
   btnScreenShare.classList.remove('active');
+  
+  socket.emit('screenshare-stopped');
   
   // Stop screen stream tracks
   if (screenStream) {
@@ -790,19 +795,34 @@ async function stopScreenShare() {
   
   // Restore local preview
   localVideo.srcObject = localStream;
+  localVideo.style.objectFit = 'cover';
   showToast('Screen sharing stopped');
 }
 
-function openFullscreenVideo(stream, name) {
+socket.on('screenshare-started', ({ senderSocketId }) => {
+  const vid = document.getElementById(`video-${senderSocketId}`);
+  if (vid) vid.style.objectFit = 'contain';
+  showToast(`A peer started screen sharing`);
+});
+
+socket.on('screenshare-stopped', ({ senderSocketId }) => {
+  const vid = document.getElementById(`video-${senderSocketId}`);
+  if (vid) vid.style.objectFit = 'cover';
+});
+
+function openFullscreenVideo(vidId, name) {
+  const sourceVid = document.getElementById(vidId);
+  if (!sourceVid || !sourceVid.srcObject) return;
+  
   const modal = document.createElement('div');
-  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:20000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;';
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:40000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;';
   modal.innerHTML = `
-    <video autoplay playsinline style="max-width:90%; max-height:85%; border-radius:12px; box-shadow: 0 20px 50px rgba(0,0,0,1)"></video>
+    <video autoplay playsinline style="max-width:95%; max-height:90%; border-radius:12px; box-shadow: 0 20px 50px rgba(0,0,0,1); object-fit: contain;"></video>
     <div style="color:white; margin-top:20px; font-weight:700; font-size:18px;">${name}</div>
     <button style="position:absolute; top:30px; right:30px; background:white; color:black; border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; font-weight:900;">X</button>
   `;
   const vid = modal.querySelector('video');
-  vid.srcObject = stream;
+  vid.srcObject = sourceVid.srcObject;
   modal.querySelector('button').onclick = () => modal.remove();
   document.body.appendChild(modal);
 }
