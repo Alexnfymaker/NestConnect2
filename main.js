@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session, desktopCapturer, ipcMain } = require('electron');
+const { app, BrowserWindow, session, desktopCapturer, ipcMain, Notification } = require('electron');
 const path = require('path');
 
 let mainWindow;
@@ -7,17 +7,23 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 1000,
+    minHeight: 700,
     title: "NestConnect",
+    icon: path.join(__dirname, 'public/assets/icon.ico'), // Ensure icon is loaded if exists
     backgroundColor: '#0a0a0a',
-    fullscreen: false,
+    show: false, // Don't show until ready
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      backgroundThrottling: false // Important for background call/message handling
     }
+  });
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
   });
 
   // Chrome-like UA so WebRTC APIs are fully available
@@ -69,6 +75,10 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId('com.alexnfymaker.nestconnect');
+  }
+
   createWindow();
 
   // Set app to autostart on Windows
@@ -82,6 +92,18 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+// Native notification bridge from renderer to OS
+ipcMain.on('desktop-notification', (event, { title, options }) => {
+  if (Notification.isSupported()) {
+    const n = new Notification({
+      title: title || 'NestConnect',
+      body: options && options.body ? options.body : '',
+      icon: options && options.icon ? options.icon : path.join(__dirname, 'public/favicon.ico')
+    });
+    n.show();
+  }
 });
 
 app.on('window-all-closed', () => {

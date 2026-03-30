@@ -167,6 +167,30 @@ input {
   border-radius: 50%;
 }
 
+.contact-status-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.contact-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.contact-online-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.24);
+}
+
+.contact-online-dot.online { background: #2ecc71; }
+.contact-online-dot.offline { background: #abb1b8; }
+
+
 .sidebar-nav {
   flex: 1;
   padding: 0 12px;

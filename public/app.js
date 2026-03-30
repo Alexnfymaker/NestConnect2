@@ -97,6 +97,7 @@ let isRegisterMode = false;
 let myNumber = '';
 let currentRoom = null;
 let dialNumber = '';
+const onlineFriends = new Set(); // store friend IDs known online
 
 let localStream = null;
 let screenStream = null;
@@ -134,6 +135,11 @@ function showToast(msg) {
   toastEl.textContent = msg;
   toastEl.classList.remove('hidden');
   setTimeout(() => toastEl.classList.add('hidden'), 3500);
+
+  // Send native desktop notification if window is blurred
+  if (!document.hasFocus() && Notification.permission === "granted") {
+    new Notification("NestConnect", { body: msg, icon: '/favicon.ico' });
+  }
 }
 
 function toggleTheme() {
@@ -247,6 +253,11 @@ function onLoggedIn(user) {
   document.getElementById('my-number-header').textContent = user.id;
   switchScreen('dashboard-screen');
   refreshFriendsUI();
+
+  // Request notification permission on first login
+  if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+    Notification.requestPermission();
+  }
 }
 
 function toggleAuthMode(reg) {
@@ -282,12 +293,16 @@ async function refreshFriendsUI() {
       user.friends.forEach(friend => {
         const fid = friend.id;
         const fname = friend.nickname;
+        const isOnline = !!friend.online || onlineFriends.has(fid);
         const initials = fname.substring(0, 2).toUpperCase();
         const card = document.createElement('div');
         card.className = 'contact-card';
         card.innerHTML = `
           <div class="contact-avatar">${initials}</div>
-          <h3 style="font-size: 16px; margin-bottom: 4px;">${fname}</h3>
+          <div class="contact-status-wrapper">
+            <span class="contact-name">${fname}</span>
+            <span class="contact-online-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
+          </div>
           <p style="font-size: 12px; color: var(--text-3); margin-bottom: 20px;">ID: #${fid}</p>
           <div style="display: flex; gap: 8px;">
             <button class="icon-btn" style="flex:1" onclick="openDirectChat('${fid}', '${fname}')" title="Chat">
@@ -346,8 +361,8 @@ socket.on('friend-request-accepted', ({ nickname }) => {
   refreshFriendsUI();
 });
 
-socket.on('friend-online', ({ id }) => { refreshFriendsUI(); });
-socket.on('friend-offline', ({ id }) => { refreshFriendsUI(); });
+socket.on('friend-online', ({ id }) => { onlineFriends.add(id); refreshFriendsUI(); });
+socket.on('friend-offline', ({ id }) => { onlineFriends.delete(id); refreshFriendsUI(); });
 
 async function addFriend() {
   const targetId = friendIdInput.value.trim();
@@ -442,6 +457,9 @@ socket.on('receive-chat-msg', ({ senderId, senderNickname, message }) => {
     addDirectMessageUI(senderNickname, message, false);
   } else {
     showToast(`New message from ${senderNickname}`);
+    if (Notification.permission === "granted") {
+       new Notification(`Message from ${senderNickname}`, { body: message });
+    }
   }
 });
 
@@ -570,6 +588,10 @@ socket.on('room-created', ({ roomId }) => {
 socket.on('invitation', ({ callerNumber, callerNickname, roomId }) => {
   inviterNumberEl.textContent = callerNickname || callerNumber;
   incomingInviteOverlay.classList.remove('hidden');
+  
+  if (Notification.permission === "granted") {
+     new Notification("Incoming Call", { body: `${callerNickname || callerNumber} is calling you on NestConnect.` });
+  }
   
   // Play incoming call sound
   soundInvite.play().catch(e => console.log("Audio play blocked by browser. Interaction required."));
