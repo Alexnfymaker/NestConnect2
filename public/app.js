@@ -125,9 +125,15 @@ function showToast(msg) {
 }
 
 function toggleTheme() {
-  document.body.classList.toggle('dark-mode');
-  const isDark = document.body.classList.contains('dark-mode');
+  const isDark = document.body.classList.toggle('dark-mode');
+  localStorage.setItem('nexus-theme', isDark ? 'dark' : 'light');
   showToast(isDark ? 'Dark Mode Enabled' : 'Light Mode Enabled (Default)');
+}
+
+function loadTheme() {
+  if (localStorage.getItem('nexus-theme') === 'dark') {
+    document.body.classList.add('dark-mode');
+  }
 }
 
 function switchScreen(screenId) {
@@ -591,6 +597,7 @@ function setupPeer(socketId, number, nickname, isOffer) {
       wrapper = document.createElement('div');
       wrapper.className = 'video-wrapper';
       wrapper.id = `wrapper-${socketId}`;
+      wrapper.onclick = () => openFullscreenVideo(e.streams[0], nickname);
       wrapper.innerHTML = `<video id="video-${socketId}" autoplay playsinline></video><div class="video-label">${nickname} <span style="opacity:0.6;font-size:10px;">#${number}</span></div>`;
       videoGrid.appendChild(wrapper);
     }
@@ -654,20 +661,12 @@ function updateParticipantList() {
 }
 
 btnLeave.onclick = () => {
-  // 1. Notify server
   socket.emit('leave-room');
-  
-  // 2. Add an event listener to the sound object so we reload ONLY after it's done
-  soundLeave.onended = () => {
+  soundLeave.play().catch(e => {});
+  // Use a very short delay so the sound starts but user feels immediate action
+  setTimeout(() => {
     location.reload();
-  };
-
-  // 3. Play the sound
-  soundLeave.play().catch(e => {
-    console.error("Sound play failed:", e);
-    // If it fails (e.g., auto-play restriction), just reload immediately
-    location.reload();
-  });
+  }, 300);
 };
 
 // Messaging
@@ -684,8 +683,8 @@ socket.on('room-chat', ({ msg, sender }) => addRoomMessage(sender, msg, false));
 function addRoomMessage(sender, msg, isMe) {
   if (roomMessages.querySelector('p')) roomMessages.innerHTML = '';
   const div = document.createElement('div');
-  div.style.marginBottom = '12px';
-  div.innerHTML = `<span style="font-weight:700; color:${isMe ? 'var(--accent)' : 'var(--text-2)'}; font-size:11px;">${sender.toUpperCase()}</span><p style="margin-top:2px;">${msg}</p>`;
+  div.style.cssText = 'margin-bottom: 20px; word-wrap: break-word; line-height: 1.4;';
+  div.innerHTML = `<span style="font-weight:800; color:${isMe ? 'var(--accent)' : 'var(--text-3)'}; font-size:9px; text-transform: uppercase;">${sender}</span><p style="margin-top:4px; font-size:13px;">${msg}</p>`;
   roomMessages.appendChild(div);
   roomMessages.scrollTop = roomMessages.scrollHeight;
 }
@@ -755,6 +754,20 @@ function stopScreenShare() {
   showToast('Screen sharing stopped');
 }
 
+function openFullscreenVideo(stream, name) {
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:20000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px;';
+  modal.innerHTML = `
+    <video autoplay playsinline style="max-width:90%; max-height:85%; border-radius:12px; box-shadow: 0 20px 50px rgba(0,0,0,1)"></video>
+    <div style="color:white; margin-top:20px; font-weight:700; font-size:18px;">${name}</div>
+    <button style="position:absolute; top:30px; right:30px; background:white; color:black; border:none; border-radius:50%; width:44px; height:44px; cursor:pointer; font-weight:900;">X</button>
+  `;
+  const vid = modal.querySelector('video');
+  vid.srcObject = stream;
+  modal.querySelector('button').onclick = () => modal.remove();
+  document.body.appendChild(modal);
+}
+
 // Navigation Delegation
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-screen]');
@@ -765,6 +778,7 @@ document.addEventListener('click', (e) => {
 });
 
 checkMe();
+loadTheme();
 populateDevices();
 async function populateDevices() {
   const ds = await navigator.mediaDevices.enumerateDevices();

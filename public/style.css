@@ -556,6 +556,36 @@ input {
   max-width: 800px;
   aspect-ratio: 16/9;
   box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.video-wrapper:hover {
+  transform: scale(1.02);
+  box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+}
+
+.video-wrapper::before {
+  content: "Click to Expand";
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  color: white;
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 10;
+  letter-spacing: 0.5px;
+}
+
+.video-wrapper:hover::before {
+  opacity: 1;
 }
 
 .video-wrapper video {
