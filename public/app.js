@@ -154,7 +154,10 @@ function switchScreen(screenId) {
 
   // Handle Active Call Badge and Sidebar visibility
   const badge = document.getElementById('call-active-badge');
-  if (currentRoom) {
+  if (screenId === 'login-screen') {
+    nexusSidebar.classList.add('hidden');
+    topBar.classList.add('hidden');
+  } else if (currentRoom) {
     if (screenId === 'room-screen') {
       badge.classList.add('hidden');
       nexusSidebar.classList.add('hidden');
@@ -165,6 +168,7 @@ function switchScreen(screenId) {
   } else {
     badge.classList.add('hidden');
     nexusSidebar.classList.remove('hidden');
+    topBar.classList.remove('hidden');
   }
 }
 
@@ -713,22 +717,25 @@ btnVideo.onclick = () => {
 btnScreenShare.onclick = async () => {
   if (!isSharingScreen) {
     try {
-      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
-      // Replace video track in all peer connections
+      
+      // Update localStream reference so stop work correctly
+      const camTrack = localStream.getVideoTracks()[0];
+      
       Object.values(peers).forEach(p => {
         const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
         if (sender) sender.replaceTrack(screenTrack);
       });
-      // Show screen share in local video
+      
       localVideo.srcObject = screenStream;
       isSharingScreen = true;
       btnScreenShare.classList.add('active');
       showToast('Screen sharing started');
-      // When user stops sharing via browser UI
+      
       screenTrack.onended = () => stopScreenShare();
     } catch (e) {
-      showToast('Screen sharing cancelled');
+      showToast('Screen sharing failed');
     }
   } else {
     stopScreenShare();
