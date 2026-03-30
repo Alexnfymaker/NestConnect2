@@ -440,6 +440,34 @@ window.closeDirectChat = closeDirectChat;
 // ═══════════════════════════════════════
 //  Meeting & Room
 // ═══════════════════════════════════════
+
+function createDummyVideoTrack() {
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext('2d');
+    const drawInterval = setInterval(() => {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 40px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('CAMERA OFF', canvas.width/2, canvas.height/2);
+      ctx.fillStyle = 'rgba(255,255,255,0.05)';
+      const size = 100 + Math.sin(Date.now() / 500) * 20;
+      ctx.beginPath();
+      ctx.arc(canvas.width/2, canvas.height/2 + 80, size, 0, Math.PI * 2);
+      ctx.fill();
+    }, 100);
+    const stream = canvas.captureStream ? canvas.captureStream(10) : canvas.mozCaptureStream(10);
+    const track = stream.getVideoTracks()[0];
+    const originalStop = track.stop.bind(track);
+    track.stop = () => { clearInterval(drawInterval); originalStop(); };
+    return track;
+  } catch (e) { return null; }
+}
+
 async function getMedia() {
   if (localStream) return true;
   try {
@@ -449,13 +477,18 @@ async function getMedia() {
       video: v ? { deviceId: { ideal: v } } : true,
       audio: a ? { deviceId: { ideal: a } } : true
     });
+    if (localStream.getVideoTracks().length === 0) {
+      const dummy = createDummyVideoTrack();
+      if (dummy) localStream.addTrack(dummy);
+    }
     localVideo.srcObject = localStream;
     monitorSpeech(localStream, 'wrapper-local', 'local');
     return true;
   } catch (e) {
-    // Fallback: try audio-only if video fails
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      const dummy = createDummyVideoTrack();
+      if (dummy) localStream.addTrack(dummy);
       localVideo.srcObject = localStream;
       monitorSpeech(localStream, 'wrapper-local', 'local');
       showToast('Camera unavailable — joined with audio only.');
@@ -714,39 +747,41 @@ btnScreenShare.onclick = async () => {
       screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = screenStream.getVideoTracks()[0];
       
-      // Save the original camera track before replacing
-      savedCameraTrack = localStream.getVideoTracks()[0];
-      
-      // Replace the video track in every peer connection
       let replacedCount = 0;
       for (const [id, p] of Object.entries(peers)) {
-        if (p.videoSender) {
+        const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (sender) {
           try {
-            await p.videoSender.replaceTrack(screenTrack);
+            await sender.replaceTrack(screenTrack);
             replacedCount++;
-            console.log(`[ScreenShare] Replaced track for peer ${id}`);
           } catch (err) {
-            console.error(`[ScreenShare] Failed to replace track for peer ${id}:`, err);
+            console.warn(`replaceTrack failed for peer ${id}, renegotiating...`, err);
+            p.pc.removeTrack(sender);
+            p.pc.addTrack(screenTrack, localStream);
+            const offer = await p.pc.createOffer();
+            await p.pc.setLocalDescription(offer);
+            socket.emit('offer', { targetSocketId: id, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
           }
         } else {
-          console.warn(`[ScreenShare] No video sender found for peer ${id}`);
+          p.pc.addTrack(screenTrack, localStream);
+          const offer = await p.pc.createOffer();
+          await p.pc.setLocalDescription(offer);
+          socket.emit('offer', { targetSocketId: id, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
         }
       }
       
-      // Show screen in local preview
       localVideo.srcObject = screenStream;
       localVideo.style.objectFit = 'contain';
+      document.getElementById('wrapper-local').classList.add('sharing');
       isSharingScreen = true;
       btnScreenShare.classList.add('active');
-      showToast(`Screen sharing started (${replacedCount} peer(s))`);
+      showToast(`Screen sharing started`);
       
       socket.emit('screenshare-started');
-      
-      // Auto-stop when user clicks "Stop sharing" in browser UI
       screenTrack.onended = () => stopScreenShare();
     } catch (e) {
       console.error('[ScreenShare] Error:', e);
-      showToast('Screen sharing cancelled');
+      if (e.name !== 'NotAllowedError') showToast('Screen sharing failed');
     }
   } else {
     stopScreenShare();
@@ -757,30 +792,33 @@ async function stopScreenShare() {
   if (!isSharingScreen) return;
   isSharingScreen = false;
   btnScreenShare.classList.remove('active');
+  document.getElementById('wrapper-local').classList.remove('sharing');
   
   socket.emit('screenshare-stopped');
   
-  // Stop screen stream tracks
   if (screenStream) {
     screenStream.getTracks().forEach(t => t.stop());
     screenStream = null;
   }
   
-  // Restore the saved camera track to all peers
-  if (savedCameraTrack) {
+  const originalVideoTrack = localStream.getVideoTracks()[0];
+  if (originalVideoTrack) {
     for (const [id, p] of Object.entries(peers)) {
-      if (p.videoSender) {
+      const sender = p.pc.getSenders().find(s => s.track && s.track.kind === 'video');
+      if (sender) {
         try {
-          await p.videoSender.replaceTrack(savedCameraTrack);
-          console.log(`[ScreenShare] Restored camera for peer ${id}`);
+          await sender.replaceTrack(originalVideoTrack);
         } catch (err) {
-          console.error(`[ScreenShare] Failed to restore camera for peer ${id}:`, err);
+          p.pc.removeTrack(sender);
+          p.pc.addTrack(originalVideoTrack, localStream);
+          const offer = await p.pc.createOffer();
+          await p.pc.setLocalDescription(offer);
+          socket.emit('offer', { targetSocketId: id, offer, senderNumber: myNumber, senderNickname: currentUser.nickname });
         }
       }
     }
   }
   
-  // Restore local preview
   localVideo.srcObject = localStream;
   localVideo.style.objectFit = 'cover';
   showToast('Screen sharing stopped');

@@ -599,6 +599,11 @@ input {
   box-shadow: 0 0 15px rgba(255,255,255,0.2);
 }
 
+.video-wrapper.sharing {
+  border-color: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
 .control-bar {
   position: absolute;
   bottom: 30px;
