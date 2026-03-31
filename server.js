@@ -213,8 +213,45 @@ const idToSocketIds = new Map(); // userId -> Set of socketIds
 const socketIdToId = new Map();
 const socketIdToNickname = new Map();
 
+// Pending peer-to-peer invite state
+const pendingInvitations = new Map(); // key: `${callerId}|${targetId}` -> {callerId,targetId,roomId,callerNickname,timeout}
+const callerPendingTargets = new Map(); // callerId -> Set<targetId>
+
 function getUserSocketIds(userId) {
   return idToSocketIds.get(userId) || new Set();
+}
+
+function getPendingKey(callerId, targetId) {
+  return `${callerId}|${targetId}`;
+}
+
+function clearPendingInvitation(callerId, targetId, reason = 'cancelled') {
+  const key = getPendingKey(callerId, targetId);
+  const inv = pendingInvitations.get(key);
+  if (!inv) return;
+  clearTimeout(inv.timeout);
+  pendingInvitations.delete(key);
+  const callerTargets = callerPendingTargets.get(callerId);
+  if (callerTargets) {
+    callerTargets.delete(targetId);
+    if (callerTargets.size === 0) callerPendingTargets.delete(callerId);
+    else callerPendingTargets.set(callerId, callerTargets);
+  }
+
+  // Notify callee to clear invite popup
+  getUserSocketIds(targetId).forEach(socketId => {
+    io.to(socketId).emit('invitation-cancelled', { callerId, targetId, roomId: inv.roomId, reason });
+    const sendMissed = ['missed', 'caller-left', 'caller-disconnected'].includes(reason);
+    if (sendMissed) {
+      io.to(socketId).emit('missed-call', {
+        fromId: callerId,
+        fromNickname: inv.callerNickname,
+        targetId,
+        timestamp: new Date().toISOString(),
+        reason
+      });
+    }
+  });
 }
 
 io.on('connection', (socket) => {
@@ -275,8 +312,13 @@ io.on('connection', (socket) => {
 
   // Leave room gracefully
   socket.on('leave-room', () => {
+    const id = socketIdToId.get(socket.id);
+    if (id && callerPendingTargets.has(id)) {
+      [...callerPendingTargets.get(id)].forEach(targetId => {
+        clearPendingInvitation(id, targetId, 'caller-left');
+      });
+    }
     if (socket.roomId) {
-      const id = socketIdToId.get(socket.id);
       socket.to(socket.roomId).emit('user-left', { socketId: socket.id, number: id });
       socket.leave(socket.roomId);
       socket.roomId = null;
@@ -322,15 +364,38 @@ io.on('connection', (socket) => {
 
   // Invitation
   socket.on('invite-friend', ({ targetId, roomId, senderNickname, senderId }) => {
+    const key = getPendingKey(senderId, targetId);
+    const invite = {
+      callerId: senderId,
+      targetId,
+      roomId,
+      callerNickname: senderNickname,
+      timeout: setTimeout(() => {
+        if (pendingInvitations.has(key)) {
+          clearPendingInvitation(senderId, targetId, 'missed');
+        }
+      }, 25000) // mark missed after 25s
+    };
+    pendingInvitations.set(key, invite);
+    if (!callerPendingTargets.has(senderId)) callerPendingTargets.set(senderId, new Set());
+    callerPendingTargets.get(senderId).add(targetId);
+
     getUserSocketIds(targetId).forEach(targetSid => {
       io.to(targetSid).emit('invitation', { callerNumber: senderId, callerNickname: senderNickname, roomId });
     });
   });
 
+  socket.on('invite-accepted', ({ callerId, targetId }) => {
+    clearPendingInvitation(callerId, targetId, 'accepted');
+  });
+
   socket.on('reject-invitation', ({ targetId }) => {
-    getUserSocketIds(targetId).forEach(targetSid => {
-      io.to(targetSid).emit('invitation-rejected', { fromNumber: socketIdToId.get(socket.id) });
+    const calleeId = socketIdToId.get(socket.id);
+    const callerId = targetId;
+    getUserSocketIds(callerId).forEach(callerSid => {
+      io.to(callerSid).emit('invitation-rejected', { fromId: calleeId });
     });
+    clearPendingInvitation(callerId, calleeId, 'rejected');
   });
 
   // Mesh signaling
@@ -347,6 +412,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const id = socketIdToId.get(socket.id);
     if (id) {
+      if (callerPendingTargets.has(id)) {
+        [...callerPendingTargets.get(id)].forEach(targetId => {
+          clearPendingInvitation(id, targetId, 'caller-disconnected');
+        });
+      }
+
       const sockets = getUserSocketIds(id);
       sockets.delete(socket.id);
       if (sockets.size > 0) {

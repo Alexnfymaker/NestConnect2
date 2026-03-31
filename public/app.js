@@ -101,6 +101,7 @@ let myNumber = '';
 let currentRoom = null;
 let dialNumber = '';
 const onlineFriends = new Set(); // store friend IDs known online
+const missedCallCounts = new Map(); // friendId -> number of missed calls
 
 let localStream = null;
 let screenStream = null;
@@ -309,12 +310,14 @@ async function refreshFriendsUI() {
         const fname = friend.nickname;
         const isOnline = !!friend.online || onlineFriends.has(fid);
         const initials = fname.substring(0, 2).toUpperCase();
+        const missedCount = missedCallCounts.get(fid) || 0;
+        const missedBadge = missedCount > 0 ? `<span style="font-size:12px;color:#fff;background:#e74c3c;border-radius:10px;padding:2px 6px;margin-left:6px;">${missedCount}</span>` : '';
         const card = document.createElement('div');
         card.className = 'contact-card';
         card.innerHTML = `
           <div class="contact-avatar">${initials}</div>
           <div class="contact-status-wrapper">
-            <span class="contact-name">${fname}</span>
+            <span class="contact-name">${fname}${missedBadge}</span>
             <span class="contact-online-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'Online' : 'Offline'}"></span>
           </div>
           <p style="font-size: 12px; color: var(--text-3); margin-bottom: 20px;">ID: #${fid}</p>
@@ -453,6 +456,7 @@ window.dialNumberFromContact = (id, type) => {
 // ═══════════════════════════════════════
 async function openDirectChat(friendId, nickname) {
   activeChatFriendId = friendId;
+  missedCallCounts.set(friendId, 0);
   chatFriendName.textContent = nickname || `Friend #${friendId}`;
   chatFriendAvatar.textContent = (nickname || '??').substring(0, 2).toUpperCase();
   directChatModal.classList.remove('hidden');
@@ -682,6 +686,7 @@ socket.on('invitation', ({ callerNumber, callerNickname, roomId }) => {
     soundInvite.pause();
     soundInvite.currentTime = 0;
     incomingInviteOverlay.classList.add('hidden');
+    socket.emit('invite-accepted', { callerId: callerNumber, targetId: myNumber });
     joinRoom(roomId);
   };
   document.getElementById('btn-reject-invite').onclick = () => {
@@ -692,12 +697,42 @@ socket.on('invitation', ({ callerNumber, callerNickname, roomId }) => {
   };
 });
 
-socket.on('invitation-rejected', ({ fromNumber }) => {
-  if (dialNumber === fromNumber) {
-    showToast(`Call declined by #${fromNumber}`);
+socket.on('invitation-cancelled', ({ callerId, reason }) => {
+  if (!incomingInviteOverlay.classList.contains('hidden')) {
+    incomingInviteOverlay.classList.add('hidden');
+    soundInvite.pause();
+    soundInvite.currentTime = 0;
+    showToast(`Call from #${callerId} cancelled (${reason}).`);
+  }
+});
+
+socket.on('missed-call', ({ fromId, fromNickname, timestamp, reason }) => {
+  const formattedTime = new Date(timestamp).toLocaleTimeString();
+  const message = `${fromNickname || 'Unknown'} (#${fromId}) tried to call you at ${formattedTime} (${reason}).`;
+  showToast(message);
+
+  const existing = missedCallCounts.get(fromId) || 0;
+  missedCallCounts.set(fromId, existing + 1);
+
+  if (activeChatFriendId === fromId) {
+    missedCallCounts.set(fromId, 0);
+    refreshFriendsUI();
+    const entry = document.createElement('div');
+    entry.style.cssText = 'font-size: 12px; color: var(--text-3); margin: 12px 0; text-align: center;';
+    entry.textContent = message;
+    directChatMessages.appendChild(entry);
+    directChatMessages.scrollTop = directChatMessages.scrollHeight;
+  } else {
+    refreshFriendsUI();
+  }
+});
+
+socket.on('invitation-rejected', ({ fromId }) => {
+  if (dialNumber === fromId) {
+    showToast(`Call declined by #${fromId}`);
     soundOutgoingRing.pause();
     soundOutgoingRing.currentTime = 0;
-    const ringWrap = document.getElementById(`wrapper-ringing-${fromNumber}`);
+    const ringWrap = document.getElementById(`wrapper-ringing-${fromId}`);
     if (ringWrap) ringWrap.remove();
   }
 });
