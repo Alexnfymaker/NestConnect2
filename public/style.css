@@ -161,10 +161,18 @@ input {
 }
 
 .status-dot {
-  width: 5px;
-  height: 5px;
-  background: var(--success);
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
+  background: #2ecc71;
+  box-shadow: 0 0 8px rgba(46, 204, 113, 0.4);
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+.status-dot.offline {
+  background: #abb1b8;
+  box-shadow: none;
 }
 
 .contact-status-wrapper {

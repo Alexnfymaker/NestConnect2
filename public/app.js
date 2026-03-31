@@ -17,6 +17,13 @@ const loginEmailInput = document.getElementById('login-email');
 const loginPassInput  = document.getElementById('login-password');
 const loginNickInput  = document.getElementById('login-nickname');
 const nicknameGroup   = document.getElementById('nickname-group');
+const userStatusLabel = document.querySelector('.user-status');
+const userStatusDot = document.querySelector('.user-status .status-dot');
+
+function updateLocalStatus(online) {
+  if (!userStatusLabel) return;
+  userStatusLabel.innerHTML = `<span class="status-dot ${online ? 'online' : 'offline'}"></span>${online ? 'Online' : 'Offline'}`;
+}
 const btnAuthMain     = document.getElementById('btn-auth-main');
 const authTitle       = document.getElementById('auth-title');
 const goToRegister    = document.getElementById('go-to-register');
@@ -248,7 +255,8 @@ function onLoggedIn(user) {
   
   localNicknameLabel.textContent = user.nickname;
   sidebarAvatar.textContent = user.nickname.substring(0, 2).toUpperCase();
-  
+  updateLocalStatus(true);
+
   // Update sidebar branding etc
   nexusSidebar.classList.remove('hidden');
   topBar.classList.remove('hidden');
@@ -391,6 +399,11 @@ socket.on('connect', () => {
 socket.on('disconnect', () => {
   onlineFriends.clear();
   refreshFriendsUI();
+  updateLocalStatus(false);
+});
+
+window.addEventListener('beforeunload', () => {
+  updateLocalStatus(false);
 });
 
 // Real-time Social Listeners
