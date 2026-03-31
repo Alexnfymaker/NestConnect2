@@ -254,6 +254,7 @@ function onLoggedIn(user) {
   loginScreen.style.display = 'none';
 
   socket.emit('identify', { id: user.id });
+  syncOnlineFriends();
   document.getElementById('my-number-header').textContent = user.id;
   switchScreen('dashboard-screen');
   refreshFriendsUI();
@@ -362,6 +363,31 @@ async function refreshFriendsUI() {
     }
   } catch (e) {}
 }
+
+async function syncOnlineFriends() {
+  try {
+    const res = await fetch('/api/online-friends', { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    onlineFriends.clear();
+    (data.onlineFriends || []).forEach(fid => onlineFriends.add(fid));
+    refreshFriendsUI();
+  } catch (e) {
+    console.error('Failed to sync online friends', e);
+  }
+}
+
+socket.on('connect', () => {
+  if (myNumber) {
+    socket.emit('identify', { id: myNumber });
+    syncOnlineFriends();
+  }
+});
+
+socket.on('disconnect', () => {
+  onlineFriends.clear();
+  refreshFriendsUI();
+});
 
 // Real-time Social Listeners
 socket.on('friend-request-received', ({ fromNickname }) => {

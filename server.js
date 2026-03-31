@@ -145,8 +145,9 @@ app.post('/api/friends/request', authenticate, (req, res) => {
   saveUsers(users);
 
   // Notify receiver in real-time
-  const targetSid = idToSocketId.get(targetId);
-  if (targetSid) io.to(targetSid).emit('friend-request-received', { fromId: sender.id, fromNickname: sender.nickname });
+  getUserSocketIds(targetId).forEach(targetSid => {
+    io.to(targetSid).emit('friend-request-received', { fromId: sender.id, fromNickname: sender.nickname });
+  });
 
   res.json({ success: true });
 });
@@ -166,8 +167,9 @@ app.post('/api/friends/accept', authenticate, (req, res) => {
     if (sentIdx !== -1) sender.sentRequests.splice(sentIdx, 1);
     
     // Notify sender in real-time
-    const senderSid = idToSocketId.get(senderId);
-    if (senderSid) io.to(senderSid).emit('friend-request-accepted', { id: receiver.id, nickname: receiver.nickname });
+    getUserSocketIds(senderId).forEach(senderSid => {
+      io.to(senderSid).emit('friend-request-accepted', { id: receiver.id, nickname: receiver.nickname });
+    });
   }
   saveUsers(users);
   res.json({ success: true });
@@ -176,7 +178,7 @@ app.post('/api/friends/accept', authenticate, (req, res) => {
 app.get('/api/online-friends', authenticate, (req, res) => {
   const users = getUsers();
   const user = users[req.userEmail];
-  const onlineFriends = (user.friends || []).filter(fid => idToSocketId.has(fid));
+  const onlineFriends = (user.friends || []).filter(fid => getUserSocketIds(fid).size > 0);
   res.json({ onlineFriends });
 });
 
@@ -207,29 +209,40 @@ if (fs.existsSync(keyPath) && fs.existsSync(certPath)) {
 const io = new Server(server, { cors: { origin: '*' } });
 
 // Socket state
-const idToSocketId = new Map();
+const idToSocketIds = new Map(); // userId -> Set of socketIds
 const socketIdToId = new Map();
 const socketIdToNickname = new Map();
+
+function getUserSocketIds(userId) {
+  return idToSocketIds.get(userId) || new Set();
+}
 
 io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   socket.on('identify', ({ id }) => {
-    idToSocketId.set(id, socket.id);
+    const existing = idToSocketIds.get(id);
+    const wasOnline = existing && existing.size > 0;
+    if (existing) existing.add(socket.id);
+    else idToSocketIds.set(id, new Set([socket.id]));
     socketIdToId.set(socket.id, id);
     console.log(`Socket ${socket.id} identified as ${id}`);
 
-    // Notify friends that this user just came online
-    try {
-      const users = getUsers();
-      const user = Object.values(users).find(u => u.id === id);
-      if (user && user.friends) {
-        user.friends.forEach(friendId => {
-          const friendSid = idToSocketId.get(friendId);
-          if (friendSid) io.to(friendSid).emit('friend-online', { id });
-        });
-      }
-    } catch(e) {}
+    if (!wasOnline) {
+      // Notify friends that this user just came online
+      try {
+        const users = getUsers();
+        const user = Object.values(users).find(u => u.id === id);
+        if (user && user.friends) {
+          user.friends.forEach(friendId => {
+            getUserSocketIds(friendId).forEach(friendSid => {
+              io.to(friendSid).emit('friend-online', { id });
+            });
+          });
+        }
+      } catch(e) {}
+    }
+
   });
 
   // Room Management
@@ -302,25 +315,22 @@ io.on('connection', (socket) => {
     messages[chatKey].push(newMsg);
     saveMessages(messages);
 
-    const targetSid = idToSocketId.get(targetId);
-    if (targetSid) {
+    getUserSocketIds(targetId).forEach(targetSid => {
       io.to(targetSid).emit('receive-chat-msg', { senderId, senderNickname, message });
-    }
+    });
   });
 
   // Invitation
   socket.on('invite-friend', ({ targetId, roomId, senderNickname, senderId }) => {
-    const targetSid = idToSocketId.get(targetId);
-    if (targetSid) {
+    getUserSocketIds(targetId).forEach(targetSid => {
       io.to(targetSid).emit('invitation', { callerNumber: senderId, callerNickname: senderNickname, roomId });
-    }
+    });
   });
 
   socket.on('reject-invitation', ({ targetId }) => {
-    const targetSid = idToSocketId.get(targetId);
-    if (targetSid) {
+    getUserSocketIds(targetId).forEach(targetSid => {
       io.to(targetSid).emit('invitation-rejected', { fromNumber: socketIdToId.get(socket.id) });
-    }
+    });
   });
 
   // Mesh signaling
@@ -337,20 +347,29 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const id = socketIdToId.get(socket.id);
     if (id) {
-      idToSocketId.delete(id);
+      const sockets = getUserSocketIds(id);
+      sockets.delete(socket.id);
+      if (sockets.size > 0) {
+        idToSocketIds.set(id, sockets);
+      } else {
+        idToSocketIds.delete(id);
+      }
       socketIdToId.delete(socket.id);
 
-      // Notify friends that this user just went offline
-      try {
-        const users = getUsers();
-        const user = Object.values(users).find(u => u.id === id);
-        if (user && user.friends) {
-          user.friends.forEach(friendId => {
-            const friendSid = idToSocketId.get(friendId);
-            if (friendSid) io.to(friendSid).emit('friend-offline', { id });
-          });
-        }
-      } catch(e) {}
+      // Notify friends that this user just went offline if no sockets left
+      if (!getUserSocketIds(id).size) {
+        try {
+          const users = getUsers();
+          const user = Object.values(users).find(u => u.id === id);
+          if (user && user.friends) {
+            user.friends.forEach(friendId => {
+              getUserSocketIds(friendId).forEach(friendSid => {
+                io.to(friendSid).emit('friend-offline', { id });
+              });
+            });
+          }
+        } catch(e) {}
+      }
     }
     socketIdToNickname.delete(socket.id);
     if (socket.roomId) {
