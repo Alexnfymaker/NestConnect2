@@ -212,7 +212,6 @@ const io = new Server(server, { cors: { origin: '*' } });
 const idToSocketIds = new Map(); // userId -> Set of socketIds
 const socketIdToId = new Map();
 const socketIdToNickname = new Map();
-const offlineTimeouts = new Map(); // userId -> timeoutId
 
 // Pending peer-to-peer invite state
 const pendingInvitations = new Map(); // key: `${callerId}|${targetId}` -> {callerId,targetId,roomId,callerNickname,timeout}
@@ -432,24 +431,18 @@ io.on('connection', (socket) => {
       } else {
         idToSocketIds.delete(id);
 
-        // Delay offline emit a little to avoid transient reload flicker
-        if (offlineTimeouts.has(id)) clearTimeout(offlineTimeouts.get(id));
-        offlineTimeouts.set(id, setTimeout(() => {
-          offlineTimeouts.delete(id);
-          if (!getUserSocketIds(id).size) {
-            try {
-              const users = getUsers();
-              const user = Object.values(users).find(u => u.id === id);
-              if (user && user.friends) {
-                user.friends.forEach(friendId => {
-                  getUserSocketIds(friendId).forEach(friendSid => {
-                    io.to(friendSid).emit('friend-offline', { id });
-                  });
-                });
-              }
-            } catch(e) {}
+        // Immediately broadcast offline for all friends
+        try {
+          const users = getUsers();
+          const user = Object.values(users).find(u => u.id === id);
+          if (user && user.friends) {
+            user.friends.forEach(friendId => {
+              getUserSocketIds(friendId).forEach(friendSid => {
+                io.to(friendSid).emit('friend-offline', { id });
+              });
+            });
           }
-        }, 5000));
+        } catch(e) {}
       }
       socketIdToId.delete(socket.id);
 
