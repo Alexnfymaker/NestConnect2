@@ -256,6 +256,7 @@ function onLoggedIn(user) {
 
   socket.emit('identify', { id: user.id });
   syncOnlineFriends();
+  setInterval(syncOnlineFriends, 5000);
   document.getElementById('my-number-header').textContent = user.id;
   switchScreen('dashboard-screen');
   refreshFriendsUI();
@@ -406,11 +407,13 @@ socket.on('friend-request-accepted', ({ nickname }) => {
 socket.on('friend-online', ({ id }) => {
   onlineFriends.add(id);
   refreshFriendsUI();
+  syncOnlineFriends();
 });
 
 socket.on('friend-offline', ({ id }) => {
   onlineFriends.delete(id);
   refreshFriendsUI();
+  syncOnlineFriends();
 });
 
 async function addFriend() {
