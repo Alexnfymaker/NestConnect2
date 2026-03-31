@@ -258,12 +258,6 @@ io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   socket.on('identify', ({ id }) => {
-    // Clear any old offline timer (reload/reconnect scenario)
-    if (offlineTimeouts.has(id)) {
-      clearTimeout(offlineTimeouts.get(id));
-      offlineTimeouts.delete(id);
-    }
-
     const existing = idToSocketIds.get(id);
     const wasOnline = existing && existing.size > 0;
     if (existing) existing.add(socket.id);
