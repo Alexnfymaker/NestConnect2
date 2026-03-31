@@ -212,6 +212,7 @@ const io = new Server(server, { cors: { origin: '*' } });
 const idToSocketIds = new Map(); // userId -> Set of socketIds
 const socketIdToId = new Map();
 const socketIdToNickname = new Map();
+const offlineTimeouts = new Map(); // userId -> timeoutId
 
 // Pending peer-to-peer invite state
 const pendingInvitations = new Map(); // key: `${callerId}|${targetId}` -> {callerId,targetId,roomId,callerNickname,timeout}
@@ -258,6 +259,12 @@ io.on('connection', (socket) => {
   console.log(`Socket connected: ${socket.id}`);
 
   socket.on('identify', ({ id }) => {
+    // Clear any old offline timer (reload/reconnect scenario)
+    if (offlineTimeouts.has(id)) {
+      clearTimeout(offlineTimeouts.get(id));
+      offlineTimeouts.delete(id);
+    }
+
     const existing = idToSocketIds.get(id);
     const wasOnline = existing && existing.size > 0;
     if (existing) existing.add(socket.id);
@@ -424,22 +431,31 @@ io.on('connection', (socket) => {
         idToSocketIds.set(id, sockets);
       } else {
         idToSocketIds.delete(id);
+
+        // Delay offline emit a little to avoid transient reload flicker
+        if (offlineTimeouts.has(id)) clearTimeout(offlineTimeouts.get(id));
+        offlineTimeouts.set(id, setTimeout(() => {
+          offlineTimeouts.delete(id);
+          if (!getUserSocketIds(id).size) {
+            try {
+              const users = getUsers();
+              const user = Object.values(users).find(u => u.id === id);
+              if (user && user.friends) {
+                user.friends.forEach(friendId => {
+                  getUserSocketIds(friendId).forEach(friendSid => {
+                    io.to(friendSid).emit('friend-offline', { id });
+                  });
+                });
+              }
+            } catch(e) {}
+          }
+        }, 5000));
       }
       socketIdToId.delete(socket.id);
 
-      // Notify friends that this user just went offline if no sockets left
-      if (!getUserSocketIds(id).size) {
-        try {
-          const users = getUsers();
-          const user = Object.values(users).find(u => u.id === id);
-          if (user && user.friends) {
-            user.friends.forEach(friendId => {
-              getUserSocketIds(friendId).forEach(friendSid => {
-                io.to(friendSid).emit('friend-offline', { id });
-              });
-            });
-          }
-        } catch(e) {}
+      // If there are still sockets, do not send offline yet
+      if (getUserSocketIds(id).size) {
+        // no-op
       }
     }
     socketIdToNickname.delete(socket.id);

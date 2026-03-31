@@ -406,16 +406,11 @@ socket.on('friend-request-accepted', ({ nickname }) => {
 socket.on('friend-online', ({ id }) => {
   onlineFriends.add(id);
   refreshFriendsUI();
-  showToast(`Friend #${id} is now online`);
-  if (Notification.permission === 'granted') {
-    new Notification('Friend Online', { body: `Friend #${id} is online now.` });
-  }
 });
 
 socket.on('friend-offline', ({ id }) => {
   onlineFriends.delete(id);
   refreshFriendsUI();
-  showToast(`Friend #${id} went offline`);
 });
 
 async function addFriend() {
